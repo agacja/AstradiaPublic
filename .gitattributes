@@ -1,0 +1,5 @@
+* text=auto eol=lf
+*.se1 binary
+# Preserve bundled upstream data and notices byte for byte.
+services/ephemeris/data/ephemeris/* -text -whitespace
+services/ephemeris/SWISS-LICENSE -text -whitespace

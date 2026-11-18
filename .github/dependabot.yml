@@ -1,0 +1,11 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule: {interval: weekly}
+  - package-ecosystem: cargo
+    directory: /services/ephemeris
+    schedule: {interval: weekly}
+  - package-ecosystem: gomod
+    directory: /packages/social-store
+    schedule: {interval: weekly}

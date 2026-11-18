@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/agacja/AstradiaPublic/blob/main/contracts/signal-summary.schema.json",
+  "title": "Illustrative public signal summary",
+  "description": "Review contract only; not an internal engine structure or promise of a live endpoint.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "symbol",
+    "asOf",
+    "action",
+    "state",
+    "modelVersion"
+  ],
+  "properties": {
+    "symbol": {
+      "type": "string",
+      "pattern": "^[A-Z0-9-]{1,20}$"
+    },
+    "asOf": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "action": {
+      "enum": [
+        "WAIT",
+        "LONG",
+        "SHORT"
+      ]
+    },
+    "state": {
+      "enum": [
+        "available",
+        "unavailable"
+      ]
+    },
+    "modelVersion": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 80
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "const": "unavailable"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "action": {
+            "const": "WAIT"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "const": "available"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "asOf": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "modelVersion": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  ]
+}
