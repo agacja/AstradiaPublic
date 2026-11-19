@@ -1,0 +1,16 @@
+{
+  "key": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+  "plaintext": "cross-runtime-secret-42",
+  "fixtures": [
+    {
+      "nonce": 12,
+      "legacy": "424242424242424242424242:83ae3fe086425af563edde2d25fec0ed:79ee16b5fea8d7997606475e18b17c38513887b2cba813",
+      "bytea": "0142424242424242424242424279ee16b5fea8d7997606475e18b17c38513887b2cba81383ae3fe086425af563edde2d25fec0ed"
+    },
+    {
+      "nonce": 16,
+      "legacy": "42424242424242424242424242424242:cc8237997139d3eaeaee6ba1c2b2e00f:1f0e4c28cf2818cfb11c6078e35ecd18463c7ced1e9a23",
+      "bytea": null
+    }
+  ]
+}

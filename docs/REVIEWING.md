@@ -1,0 +1,92 @@
+# Reviewer guide
+
+Start with the README scope table and the diagrams in
+[ARCHITECTURE.md](ARCHITECTURE.md), [SECURITY-MODEL.md](SECURITY-MODEL.md) and
+[EXECUTION-SAFETY.md](EXECUTION-SAFETY.md), then run the frontend.
+Every demo interaction stays local. There is no payment, account creation, wallet
+connection, exchange submission, or production API call.
+
+Suggested review order:
+
+1. `frontend/src/components/Glyph.tsx` and `ChartWheel.tsx`: reusable rendering and
+   separation between display data and calculations.
+2. `frontend/src/utils/birthData.ts`: account changes clear unowned or foreign
+   cached personal data.
+3. `frontend/src/utils/payment-access-watch.ts`: bounded polling, visibility/focus
+   refresh, account isolation, cleanup and transient-error handling.
+4. `frontend/src/contracts.ts`: narrow output parsing and refusal to consume
+   extra internal evaluation fields.
+   `frontend/src/components/DailyAudioBriefing.tsx`: abortable requests with
+   timeouts, object-URL cleanup, and a remount key so one account's audio
+   cannot linger for the next. It is a product module that type-checks and
+   builds here but is not mounted in the reviewer UI, so the demo still makes
+   no network calls; `docs/AUDIO-BRIEFINGS.md` describes its server side.
+   `frontend/src/utils/astrocartography.ts`: the spherical geometry behind the
+   map lines, with a test of its invariants.
+5. `packages/social-store/social.go`: parameterized queries, relationship
+   visibility and persisted consent; note the required calling-layer authorization.
+6. `services/ephemeris/src/main.rs`: validated requests, independent credentials,
+   bounded expensive work and a component-scoped source offer.
+7. `packages/platform-core/src/state.rs` and `tests/state.rs`: atomic leases and
+   nonces, and the guard that releases on drop.
+8. `packages/platform-core/src/signing.rs` and `tests/signing_parity.rs`:
+   byte-exact protocol hashing, and local verification of a remote signature.
+9. `packages/platform-core/src/vault.rs` and `packages/go-primitives/vault`: one
+   envelope format in two languages, each reading ciphertext written by the
+   earlier runtime.
+10. `packages/platform-core/src/webhooks.rs`: payment-notification verification
+    that fails closed, with a test for each provider.
+11. `scripts/check-public-boundary.py`: the reviewed file manifest and publication
+    controls; review the manifest itself rather than trusting its existence.
+
+## Validation
+
+```sh
+python3 scripts/check-public-boundary.py
+cd frontend
+npm ci
+npm test
+npm run build
+```
+
+From the repo root:
+
+```sh
+cd packages/social-store
+go test -race ./...
+```
+
+The social integration test prints a skip without a disposable PostgreSQL
+connection. Run it with a loopback address and a nonstandard port to exercise
+the database path; see the package README. CI provisions this test database.
+
+```sh
+cd services/ephemeris
+cargo fmt --check
+cargo test --locked
+cargo clippy --locked --all-targets -- -D warnings
+```
+
+The astronomy crate currently has no embedded Rust unit tests. The CI smoke test
+starts the real service and checks health, authorization, valid astronomical
+responses, rejected inputs, and the contents of the offered source archive.
+
+```sh
+cd packages/platform-core
+cargo fmt --check
+cargo clippy --locked --all-targets -- -D warnings
+cargo test --locked
+```
+
+```sh
+cd packages/go-primitives
+gofmt -l .
+go vet ./...
+go test -race ./...
+```
+
+Neither of these needs a database, Redis, an exchange account or network access.
+
+The private product has additional tests and deployment infrastructure which
+are not reproduced here. Public checks do not validate the private algorithm's
+investment performance or replace private execution-system tests.

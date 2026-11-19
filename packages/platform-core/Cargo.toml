@@ -1,0 +1,33 @@
+[package]
+name = "astradia-platform-core"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.94"
+publish = false
+
+[dependencies]
+aes-gcm = "0.10"
+async-trait = "0.1"
+base64 = "0.22"
+chrono = { version = "0.4", features = ["serde"] }
+ethers-core = "2"
+ethers-signers = "2"
+hex = "0.4"
+hmac = "0.12"
+p256 = { version = "0.13", features = ["ecdsa", "pkcs8"] }
+redis = { version = "0.29", features = ["tokio-comp", "connection-manager"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+rmp-serde = "1"
+secrecy = { version = "0.10", features = ["serde"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+serde_json_canonicalizer = "0.3"
+sha2 = "0.10"
+thiserror = "2"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
+uuid = { version = "1", features = ["v4"] }
+
+[lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+[lints.clippy]
+await_holding_lock = "deny"

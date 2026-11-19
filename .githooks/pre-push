@@ -1,0 +1,7 @@
+#!/bin/sh
+set -eu
+case "$2" in
+  https://github.com/agacja/AstradiaPublic.git|git@github.com:agacja/AstradiaPublic.git) ;;
+  *) echo "This public workspace only pushes to agacja/AstradiaPublic." >&2; exit 1 ;;
+esac
+python3 scripts/check-public-boundary.py
