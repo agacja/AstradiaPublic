@@ -11,9 +11,6 @@
     ".github/CODEOWNERS": {
       "sha256": "c381497584000d70d052806cdd0ae92786c751feaae6191bb01e18fcad1a75c7"
     },
-    ".github/dependabot.yml": {
-      "sha256": "b97710b7b024944a4fc7c1a5d5976bf4d44996e77e4ff3fa1699d985dffa1f1d"
-    },
     ".github/workflows/checks.yml": {
       "sha256": "f7ce3d408a69c43f2ae3bc30a7d4fc18ab99b584e87a603d50916cd710f2c1c2"
     },
