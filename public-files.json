@@ -24,7 +24,7 @@
       "sha256": "01697cb2c9e41ae86f407d0807a11e86a59396e0cbbc5a31bf1881ffc938cf5d"
     },
     "README.md": {
-      "sha256": "b9efb0bf1987c5824a3ddf4aa6d1cd14aba124834e7596e28d1dedddbbc9317e"
+      "sha256": "00302eea01edb93b9d3ae574d16e7c5ad06c28a55ae6f2d6f997828a4de68030"
     },
     "SECURITY.md": {
       "sha256": "b097fabf350f2b99d6f7df3f30f8e248fbc6bbbaf6447873566b6a67c3d795fd"
@@ -42,13 +42,13 @@
       "sha256": "da0bf839a869b0c59430addba96d79bf4c001c66238eef691990249aca4d5c0f"
     },
     "docs/PROVENANCE.md": {
-      "sha256": "bc4c01170a6928ddbe1c462b1e7252a32661f3af85cffd940d90a22e4d178ad8"
+      "sha256": "45eb34c73ea88c3245af91194e2fd6e0ce9a9d3c6c9ddfae54bcb5f7445304ba"
     },
     "docs/PUBLIC-BOUNDARY.md": {
-      "sha256": "75030fc5dd0d3788e874bb7dc16f5c38e03714083c7ec466c3a1945a7c746a97"
+      "sha256": "d04d6cd6c7a700823b6ef0fa2e68415d3fbe9d7bdefcd0a2210d92034579f4cd"
     },
     "docs/REVIEWING.md": {
-      "sha256": "fdd488cf6edeb1e239007e332d2db88fc620e6366cc32d40440f63c28c4e677e"
+      "sha256": "5e172932d7a4cd2815c97a2550f0207c854d6dc03f6a784734159486cb468155"
     },
     "docs/SECURITY-MODEL.md": {
       "sha256": "6103437717d47ecebb59270566502d8ee4f82b66b000a356e02c0e0103d12737"
@@ -60,10 +60,10 @@
       "sha256": "4ef54d43582af769b330f8abaf8a865f860ed92278c3fa4df2d727a1d213a2bb"
     },
     "frontend/package-lock.json": {
-      "sha256": "d079d027c54c7a81f97f576cee0700d0dcc17d4bb1214e24f8327f973ce490b1"
+      "sha256": "bc92a966af9a9173235c3e7a78bbaf561377cc2f2980cd4dd2bf24cc14ea2c37"
     },
     "frontend/package.json": {
-      "sha256": "e52a6f94d14f4834531e7a1522bd1d4595069f288ca7f699ca9dd9ed92c9dae3"
+      "sha256": "1e19cffa36f910bdc096cae7c77733f9d072791d4c24d8ec43030ad2c426131d"
     },
     "frontend/src/App.tsx": {
       "sha256": "05c47bfe6ccb64620142b59eb069557e51943ed37587f69d1515f8a7b3f567e5"
@@ -77,8 +77,14 @@
     "frontend/src/components/Glyph.tsx": {
       "sha256": "432388e4b38c600a0f2c9c832ba9f26aa5d0b072d83df687a82275ef49682dd2"
     },
+    "frontend/src/components/HyperliquidChart.tsx": {
+      "sha256": "4ee94321f2f3727c1c882b67ca5c86c50c728836e5aaf7653b9dc83cf75037df"
+    },
     "frontend/src/contracts.ts": {
       "sha256": "e30b998c2191d7cb4e500aa0b4d06577e97ebfe294cd20ee7e2f713c60a93280"
+    },
+    "frontend/src/lib/hyperliquid-candles.ts": {
+      "sha256": "ccf447681c1d692ec878331d3a1f71120194614f84594c8d1f382f1a3fe81692"
     },
     "frontend/src/main.tsx": {
       "sha256": "12e85131b93ad92898a643ebe9bdd2177358d189da9c44044b99737273a39648"
@@ -88,6 +94,9 @@
     },
     "frontend/src/styles/audio-briefing.css": {
       "sha256": "aed6949c2a42016b09fdad7ab793f527527e54474df4ab044cc26eef985c025a"
+    },
+    "frontend/src/styles/realtime-chart.css": {
+      "sha256": "eb7826f079226a01636bd482950de2be686655e57cfbfbe5e0599d7cae91290d"
     },
     "frontend/src/utils/astrocartography.ts": {
       "sha256": "308f412a40b4c184d948728b4d247ae5aacf61e0d3ed0b60a71d7ca0796f790f"

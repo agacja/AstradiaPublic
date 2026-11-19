@@ -16,11 +16,16 @@ Suggested review order:
    refresh, account isolation, cleanup and transient-error handling.
 4. `frontend/src/contracts.ts`: narrow output parsing and refusal to consume
    extra internal evaluation fields.
-   `frontend/src/components/DailyAudioBriefing.tsx`: abortable requests with
-   timeouts, object-URL cleanup, and a remount key so one account's audio
-   cannot linger for the next. It is a product module that type-checks and
-   builds here but is not mounted in the reviewer UI, so the demo still makes
-   no network calls; `docs/AUDIO-BRIEFINGS.md` describes its server side.
+   `frontend/src/components/HyperliquidChart.tsx`: chart and WebSocket
+   lifecycle. Each run of the chart effect owns a session that its history
+   request, socket and reconnect timer check before acting, so a slow response
+   or a late reconnect from the previous interval cannot write into the chart
+   that replaced it. `frontend/src/components/DailyAudioBriefing.tsx`:
+   abortable requests with timeouts, object-URL cleanup, and a remount key so
+   one account's audio cannot linger for the next. Both are product modules
+   that type-check and build here but are not mounted in the reviewer UI, so
+   the demo still makes no network calls; `docs/AUDIO-BRIEFINGS.md` describes
+   the server side of the second one.
    `frontend/src/utils/astrocartography.ts`: the spherical geometry behind the
    map lines, with a test of its invariants.
 5. `packages/social-store/social.go`: parameterized queries, relationship

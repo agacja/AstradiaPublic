@@ -12,9 +12,11 @@ copied. The public repository's initial commit is its own root commit.
 | `frontend/src/utils/birthData.ts` | Product account-isolated cache; type import redirected to an isolated DTO file |
 | `frontend/src/utils/chart-types.ts` | Display-only message types extracted from a mixed private calculation module; implementation excluded |
 | `frontend/tests/free-tier.test.ts`, `payment-access-watch.test.ts` | Existing regression tests using synthetic local fixtures |
+| `frontend/src/components/HyperliquidChart.tsx`, `styles/realtime-chart.css` | Product live price chart and its stylesheet; two import paths redirected and one comment naming an internal design file removed. Reads public market data only |
+| `frontend/src/lib/hyperliquid-candles.ts` | Written for this workspace: a read-only candle fetch standing in for the product's exchange SDK client |
 | `frontend/src/components/DailyAudioBriefing.tsx`, `utils/audio-briefing-api.ts`, `styles/audio-briefing.css` | Product audio briefing player, client and stylesheet; three import paths redirected |
 | `frontend/src/utils/astrocartography.ts`, `frontend/tests/astrocartography.test.ts` | The geometry half of the product module: equatorial conversion, sidereal time and the four line families, with the Julian-day helper inlined. The interpretation text that follows it in the product file is excluded. The test was written for this workspace |
-| `frontend/src/utils/session.ts` | Written for this workspace: the two session helpers that player imports, without the private API client around them |
+| `frontend/src/utils/session.ts` | Written for this workspace: the two session helpers the audio player imports, without the private API client around them |
 | `frontend/vite.config.ts` | Reviewer build configuration carrying the product's bundle guard plugin unchanged |
 | `docs/AUDIO-BRIEFINGS.md`, `docs/schema/audio-briefings.sql` | Product design note with the voice identifier, model, service name, private paths and every numeric limit removed, and a closing section added; the table definition is unchanged |
 | `frontend/src/App.tsx`, `ChartWheel.tsx`, styles, contracts, contract tests | New public reviewer interface and examples; not a claim to be the complete production UI |

@@ -13,7 +13,7 @@ maintained separately and is not included here.**
 
 | Area | Included here | Relationship to the product |
 | --- | --- | --- |
-| React + TypeScript | SVG glyphs, account-scoped chart storage, free-access presentation, membership synchronization, the audio briefing player, map-line geometry for astrocartography, a build guard that keeps server code out of the bundle, contract tests | Reused product modules, with a lightweight reviewer interface |
+| React + TypeScript | SVG glyphs, account-scoped chart storage, free-access presentation, membership synchronization, a live market-data chart, the audio briefing player, map-line geometry for astrocartography, a build guard that keeps server code out of the bundle, contract tests | Reused product modules, with a lightweight reviewer interface |
 | Rust + Axum | Standalone Swiss Ephemeris HTTP service, request validation, bounded CPU work, source distribution | The generic astronomy component used by the private platform |
 | Go + PostgreSQL | Social persistence, profile preferences, friendships, mutual consent, avatars, the social schema migrations, query regression tests | An extracted data-access package; not the complete production social API |
 | Rust platform core | AES-GCM credential envelope, atomic Redis leases and nonces, Hyperliquid action hashing and signing with a verified remote signer, Stripe and NOWPayments notification verification, the membership time check | Production modules from the private API and worker, with their tests; the routes, worker loop and engine that call them stay private |

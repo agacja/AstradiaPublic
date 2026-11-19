@@ -8,8 +8,8 @@ model behavior even when the implementation itself is absent.
 ## Approved categories
 
 - General presentation components and visual geometry.
-- Players for content the server has already authorized, with no scoring or
-  interpretation inside them.
+- Components that read only public market data, and players for content the
+  server has already authorized, with no scoring or interpretation inside them.
 - Account-scoped browser storage and membership synchronization utilities.
 - A free-feature presentation policy; server authorization remains separate.
 - Generic astronomy infrastructure, with its existing licenses and notices.
