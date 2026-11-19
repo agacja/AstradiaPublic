@@ -52,6 +52,19 @@ class PublicationBoundaryTests(unittest.TestCase):
         self.approve()
         self.assertEqual(self.check(), 1)
 
+    def test_private_module_references_fail_even_if_added_to_manifest(self):
+        for name, text in [
+            ('worker.rs', 'use crate::engine::evaluate;\n'),
+            ('routes.rs', 'let plan = astradia::strategy::select();\n'),
+        ]:
+            (self.root / name).write_text(text)
+            self.approve()
+            self.assertEqual(self.check(), 1, name)
+            (self.root / name).unlink()
+        (self.root / 'signing.rs').write_text('use crate::http::http_client;\n')
+        self.approve()
+        self.assertEqual(self.check(), 0)
+
     def test_symlink_cannot_pull_in_external_files(self):
         (self.root / 'escape.ts').symlink_to(Path(__file__).resolve())
         self.assertEqual(self.check(), 1)

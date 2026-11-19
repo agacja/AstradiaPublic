@@ -24,6 +24,16 @@ PLATFORM_TEST_DATABASE_URL=postgres://postgres:local-test-only@127.0.0.1:55443/p
 Without the variable, `go test -race ./...` compiles the package and reports the
 database test as skipped. CI supplies the variable and a dedicated test service.
 
-No production DDL or database export is included. To integrate this package in
-another service, provide a schema compatible with the queries and a correctly
+## Schema
+
+`migrations/` holds the social service's own migrations for the tables these
+queries use: friendships, comparison consent, avatars, the profile wall, display
+names and read markers. Each has an `up` and a `down` file and is safe to
+repeat. They extend an existing `users` table that is defined elsewhere and is
+not published, so they are reference material rather than a standalone
+database; this package still does not run migrations. Numbering starts at
+`000002` because the first migration concerns a credential column.
+
+No database export is included. To integrate this package in another service,
+provide a `users` table, apply the migrations, and supply a correctly
 authorized calling layer; the temporary test schema is only a test fixture.

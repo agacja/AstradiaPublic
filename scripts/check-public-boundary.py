@@ -13,6 +13,9 @@ IGNORED_DIRS = {'.git', 'node_modules', 'target', 'dist', '__pycache__'}
 PRIVATE_PATH = re.compile(r'(^|/)(?:server-rust|rust-native|audit|backups?|\.env(?:\..*)?|engine\.rs|strategy\.rs|trader\.rs|runtime\.rs|replay\.rs)(/|$)|(?:calibration|backtest|replay|weights).*(?:\.json|\.csv|\.parquet)$', re.I)
 SECRET = re.compile(r'-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----|(?:gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{40,}|sk_live_[A-Za-z0-9]{16,}|AKIA[0-9A-Z]{16}|xox[baprs]-[A-Za-z0-9-]{20,})')
 PRIVATE_IMPORT = re.compile(r'''(?:from\s*|import\s*|require\s*\(|include_str!\s*\(|include_bytes!\s*\()["'][^"']*(?:server-rust|rust-native|server/lib|server-go/internal/bot|/audit/|/scripts/data/)''')
+# Source may not reach into the private modules already named in PRIVATE_PATH.
+PRIVATE_SYMBOL = re.compile(r'\b(?:crate|astradia)::(?:engine|strategy|trader|runtime|replay)\b')
+SOURCE = ('.ts', '.tsx', '.js', '.mjs', '.rs', '.go')
 
 def files():
     if (ROOT / '.git').exists():
@@ -47,8 +50,10 @@ def main():
             continue
         if SECRET.search(text):
             errors.append(f'possible secret (value redacted): {name}')
-        if name.endswith(('.ts', '.tsx', '.js', '.mjs', '.rs', '.go')) and PRIVATE_IMPORT.search(text):
+        if name.endswith(SOURCE) and PRIVATE_IMPORT.search(text):
             errors.append(f'private implementation import: {name}')
+        if name.endswith(SOURCE) and PRIVATE_SYMBOL.search(text):
+            errors.append(f'private module reference: {name}')
     if errors:
         print('\n'.join(errors), file=sys.stderr)
         return 1

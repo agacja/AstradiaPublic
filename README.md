@@ -7,17 +7,19 @@ and trading tools. This repository makes selected interface and infrastructure
 code available for review. **The proprietary signal and trading engine is
 maintained separately and is not included here.**
 
-[Architecture](docs/ARCHITECTURE.md) · [Public/private boundary](docs/PUBLIC-BOUNDARY.md) · [Reviewer guide](docs/REVIEWING.md) · [Component provenance](docs/PROVENANCE.md)
+[Architecture](docs/ARCHITECTURE.md) · [Security model](docs/SECURITY-MODEL.md) · [Execution safety](docs/EXECUTION-SAFETY.md) · [Public/private boundary](docs/PUBLIC-BOUNDARY.md) · [Reviewer guide](docs/REVIEWING.md) · [Component provenance](docs/PROVENANCE.md)
 
 ## What you can review
 
 | Area | Included here | Relationship to the product |
 | --- | --- | --- |
-| React + TypeScript | SVG glyphs, account-scoped chart storage, free-access presentation, membership synchronization, contract tests | Reused product modules, with a lightweight reviewer interface |
+| React + TypeScript | SVG glyphs, account-scoped chart storage, free-access presentation, membership synchronization, the audio briefing player, map-line geometry for astrocartography, a build guard that keeps server code out of the bundle, contract tests | Reused product modules, with a lightweight reviewer interface |
 | Rust + Axum | Standalone Swiss Ephemeris HTTP service, request validation, bounded CPU work, source distribution | The generic astronomy component used by the private platform |
-| Go + PostgreSQL | Social persistence, profile preferences, friendships, mutual consent, avatars, query regression tests | An extracted data-access package; not the complete production social API |
+| Go + PostgreSQL | Social persistence, profile preferences, friendships, mutual consent, avatars, the social schema migrations, query regression tests | An extracted data-access package; not the complete production social API |
+| Rust platform core | AES-GCM credential envelope, atomic Redis leases and nonces, Hyperliquid action hashing and signing with a verified remote signer, Stripe and NOWPayments notification verification, the membership time check | Production modules from the private API and worker, with their tests; the routes, worker loop and engine that call them stay private |
+| Go primitives | Credential envelope with a self-redacting secret type, and a pure-Go planetary position calculator | Production packages from the Go social service, standard library only |
 | Integration contracts | A minimal, illustrative signal-summary contract | Shows how a client consumes results without containing the evaluation algorithm |
-| Engineering documentation | Architecture, scope, provenance, and release checks | Explains the private components without publishing their implementation |
+| Engineering documentation | Architecture, security model and execution safety with diagrams; scope, provenance, and release checks | Explains the private components without publishing their implementation |
 
 The public UI is a **runnable reviewer edition**, not a copy of the full hosted
 product. Its chart positions and social profile are synthetic display fixtures.
@@ -56,7 +58,7 @@ flowchart TB
         CORE["Shared proprietary signal engine"]
         WORKER["Rust trading worker"]
         API --> CORE
-        WORKER --> CORE
+        WORKER --> API
     end
     CORE --> EPH["Generic Rust astronomy service — public source"]
     API --> SOCIAL["Go social service — data-layer extract published"]
@@ -66,9 +68,10 @@ flowchart TB
     WORKER --> EXCHANGE["Exchange APIs"]
 ```
 
-The native API and worker share the private evaluation library. Generic sky
-coordinates are inputs; the transformation into asset-specific assessments,
-strategy decisions, sizing, and execution is proprietary. The browser receives
+The private evaluation engine runs inside the native API, and the worker acts
+on its decisions. Generic sky coordinates are inputs; the transformation into
+asset-specific assessments, strategy decisions, sizing, and execution is
+proprietary. The browser receives
 an authorized display response, not the model's internal calculation state.
 
 Production authentication uses Privy. Payment providers notify the server,
@@ -88,6 +91,24 @@ required; the lockfile and the component's license notices are included.
 The extracted package uses `pgx` and parameterized queries. Its PostgreSQL
 regression test checks relationship and consent visibility without loading any
 production data. Go 1.25+ is required.
+
+**Rust platform core** — see [crate instructions](packages/platform-core/README.md).
+The security and coordination modules the private API and trading worker are
+built on, taken from the deployed source with their tests: the credential
+envelope, Redis leases and nonces, exchange action hashing and signing,
+payment-notification verification and the membership check. It builds and tests
+on its own, with no database, Redis instance or network access, which is the
+practical proof that none of it depends on the private engine.
+
+**Go primitives** — see [package instructions](packages/go-primitives/README.md).
+The Go social service's credential envelope and its pure-Go planetary position
+calculator. Standard library only.
+
+[Execution safety](docs/EXECUTION-SAFETY.md) describes how the worker uses
+these pieces: one actor at a time, nonces that never repeat, signatures
+verified before use, and uncertain writes resolved before any retry. The
+[security model](docs/SECURITY-MODEL.md) covers identity, credential custody,
+payments and consent.
 
 ## Publication boundary
 

@@ -10,6 +10,8 @@
     "test": "node --import tsx --test tests/*.test.ts"
   },
   "dependencies": {
+    "astronomy-engine": "2.1.19",
+    "lucide-react": "0.562.0",
     "react": "19.2.0",
     "react-dom": "19.2.0"
   },

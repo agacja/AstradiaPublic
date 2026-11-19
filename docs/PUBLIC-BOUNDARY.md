@@ -8,10 +8,18 @@ model behavior even when the implementation itself is absent.
 ## Approved categories
 
 - General presentation components and visual geometry.
+- Players for content the server has already authorized, with no scoring or
+  interpretation inside them.
 - Account-scoped browser storage and membership synchronization utilities.
 - A free-feature presentation policy; server authorization remains separate.
 - Generic astronomy infrastructure, with its existing licenses and notices.
-- Social persistence and consent-query code, with synthetic test data.
+- Social persistence and consent-query code, with synthetic test data, and the
+  definitions of the tables it uses.
+- Platform security and coordination primitives that contain no evaluation or
+  execution logic: the credential envelope, distributed leases and nonces,
+  exchange-protocol hashing and signing, payment-notification verification and
+  the membership time check.
+  Their keys, vectors and fixtures are synthetic.
 - Illustrative output contracts and high-level architectural documentation.
 
 ## Excluded categories
@@ -20,7 +28,15 @@ model behavior even when the implementation itself is absent.
 - Parameter tables, calibration coefficients, asset-specific interpretations,
   action thresholds, risk/sizing policies, and strategy selection internals.
 - Current or historical implementations of these systems in any language.
-- Trading workers, signing/credential plumbing, execution journals and replay engines.
+- Trading workers, order planning, the exchange adapter, execution journals and
+  replay engines. Protocol signing and the credential envelope are published as
+  primitives; the code that decides what to sign, and the wiring that loads real
+  key material, are not. Request authentication and rate limiting are described,
+  not published.
+- Anything that would help an outsider tell the product's exchange activity
+  apart from anyone else's.
+- Modules named as presentation code that nonetheless contain evaluation logic
+  or interpretation text.
 - Model parity fixtures, calibration datasets, research notebooks, detailed
   backtest exports and precomputed trading outputs.
 - Production configuration, private environment files, user/payment records,

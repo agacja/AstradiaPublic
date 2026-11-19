@@ -1,0 +1,80 @@
+[
+  {
+    "name": "cancel-mainnet",
+    "action": {
+      "type": "cancel",
+      "cancels": [
+        {
+          "a": 0,
+          "o": 123456789
+        }
+      ]
+    },
+    "vaultAddress": "",
+    "nonce": 1700000000002,
+    "isTestnet": false,
+    "actionHashHex": "a12c1b4938f4b369129a5adee52ce0134a9235a12b08d3707fa5417466b1bea5",
+    "r": "2a23724c7adda4b95d8b3f379b175002c97aadbf53d77bf62801f38500c9148b",
+    "s": "031ad90ae936e4534298ee1d56d6018908f40b15e14f6fc7a2f79282faa8d28a",
+    "v": 27,
+    "signerKeyHex": "0123456789012345678901234567890123456789012345678901234567890123"
+  },
+  {
+    "name": "usdClassTransfer-mainnet",
+    "action": {
+      "type": "usdClassTransfer",
+      "signatureChainId": "0x66eee",
+      "hyperliquidChain": "Mainnet",
+      "amount": "12.5",
+      "toPerp": true,
+      "nonce": 1700000000003
+    },
+    "vaultAddress": "",
+    "nonce": 1700000000003,
+    "isTestnet": false,
+    "actionHashHex": "ffb5c16f66e8d28485876acf1bfeb26afb059c7b3197a56e50480b9bf21a1fe2",
+    "r": "b385ee97dd63116e80d011fbdb88fa14347a627b40833db75344ba7cc35f7e57",
+    "s": "13fa6bfbafa9a4659075ee12d512ae6ff85f0fe088f468ddf5fc3552cce9f42d",
+    "v": 28,
+    "signerKeyHex": "0123456789012345678901234567890123456789012345678901234567890123"
+  },
+  {
+    "name": "cancel-testnet",
+    "action": {
+      "type": "cancel",
+      "cancels": [
+        {
+          "a": 0,
+          "o": 123456789
+        }
+      ]
+    },
+    "vaultAddress": "",
+    "nonce": 1700000000002,
+    "isTestnet": true,
+    "actionHashHex": "a12c1b4938f4b369129a5adee52ce0134a9235a12b08d3707fa5417466b1bea5",
+    "r": "303cb3690e8a3675df744773c79626fe62b848672a34362f71041b67d434b467",
+    "s": "009802f2c7104aceaf23d87e0aa0f9716e12a66a4c095b992d1b9cfe49b9ba16",
+    "v": 27,
+    "signerKeyHex": "0123456789012345678901234567890123456789012345678901234567890123"
+  },
+  {
+    "name": "usdClassTransfer-testnet",
+    "action": {
+      "type": "usdClassTransfer",
+      "signatureChainId": "0x66eee",
+      "hyperliquidChain": "Testnet",
+      "amount": "12.5",
+      "toPerp": true,
+      "nonce": 1700000000003
+    },
+    "vaultAddress": "",
+    "nonce": 1700000000003,
+    "isTestnet": true,
+    "actionHashHex": "6c10ffdc56ee4c15c16efa08c6a4825bf0c5fe08b6282f83e8760ec4e2e3f8f9",
+    "r": "5ecf97ea142a77a52b19dba24a146bd6906dc63ec552ca6aaf9ef79c680848b5",
+    "s": "36f73f062474f4223e68d96b699d8618e8ad0b80b1f730104c0c14ea56496924",
+    "v": 28,
+    "signerKeyHex": "0123456789012345678901234567890123456789012345678901234567890123"
+  }
+]
