@@ -112,7 +112,3 @@ export const ASPECT_SYMBOLS: Record<string, string> = {
   Conjunction: '☌', Opposition: '☍', Trine: '△', Square: '□', Sextile: '✶',
   conjunction: '☌', opposition: '☍', trine: '△', square: '□', sextile: '✶',
 };
-export const ASPECT_COLORS: Record<string, string> = {
-  Conjunction: '#7c83f2', Opposition: '#9333ea', Trine: '#1b63da', Square: '#7c3aed', Sextile: '#60a5fa',
-  conjunction: '#7c83f2', opposition: '#9333ea', trine: '#1b63da', square: '#7c3aed', sextile: '#60a5fa',
-};

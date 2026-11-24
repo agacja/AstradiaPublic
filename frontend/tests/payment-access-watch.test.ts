@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { setImmediate } from 'node:timers/promises';
-import { clearPendingPayment, markPaymentStarted, watchPaymentAccess } from '../src/utils/payment-access-watch.ts';
+import { clearPendingPayment, markPaymentStarted, paymentLanded, renewalPending, watchPaymentAccess } from '../src/utils/payment-access-watch.ts';
 
 function browser(search = '') {
   const storage = new Map<string, string>();
@@ -71,6 +71,28 @@ test('pending checkout survives a page reload and temporary network failures', a
   } finally { stop(); b.restore(); }
 });
 
+test('a refresh that fails right after access is granted keeps the checkout pending and is tried again', async () => {
+  const b = browser();
+  markPaymentStarted('alice');
+  let refreshes = 0;
+  // The membership is active, but the first refresh cannot reach the server.
+  // It rejects (the member stays signed in); the watcher must not treat the
+  // payment as handled.
+  const stop = watchPaymentAccess('alice', async () => ({ status: 'active', expiresAt: null }), async () => {
+    if (++refreshes === 1) throw new TypeError('Failed to fetch');
+  });
+  try {
+    await setImmediate();
+    assert.equal(refreshes, 1);
+    assert.equal(b.storage.size, 1, 'the checkout is still pending');
+    assert.equal(b.timers.size, 1, 'the watcher is still running');
+    await b.tick();
+    assert.equal(refreshes, 2);
+    assert.equal(b.storage.size, 0);
+    assert.equal(b.timers.size, 0);
+  } finally { stop(); b.restore(); }
+});
+
 test('a success URL cannot grant access without a current active server membership', async () => {
   const b = browser('?payment=success&provider=nowpayments');
   let membership = { status: 'none', expiresAt: null as string | null }, refreshes = 0;
@@ -130,5 +152,100 @@ test('an in-flight result is discarded after logout or an account switch', async
     complete({ status: 'active', expiresAt: null });
     await setImmediate();
     assert.equal(refreshes, 0);
+  } finally { stop(); b.restore(); }
+});
+
+test('a member paying for another month is watched until the month has been added', async () => {
+  const b = browser();
+  const day = 86_400_000;
+  const endsNow = Date.now() + 2 * day;
+  let expiresAt = new Date(endsNow).toISOString(), reads = 0, refreshes = 0;
+  const stop = watchPaymentAccess('alice', async () => { reads++; return { status: 'active', expiresAt }; }, async () => { refreshes++; }, true);
+  try {
+    await b.tick();
+    assert.equal(reads, 0, 'a paid-up member with no payment started is never polled');
+    // Active all along: being active is not the payment arriving.
+    markPaymentStarted('alice', endsNow);
+    await setImmediate();
+    assert.equal(reads, 1);
+    assert.equal(refreshes, 0);
+    await b.tick();
+    assert.equal(refreshes, 0);
+    assert.equal(b.storage.size, 1, 'the payment is still being waited for');
+    // The month is added to the time that was left.
+    expiresAt = new Date(endsNow + 30 * day).toISOString();
+    await b.tick();
+    assert.equal(refreshes, 1);
+    assert.equal(b.storage.size, 0);
+    assert.equal(b.timers.size, 0);
+  } finally { stop(); b.restore(); }
+});
+
+test('a renewal being waited for survives a reload with the end date it started from', async () => {
+  const b = browser();
+  const day = 86_400_000;
+  const endsNow = Date.now() + day;
+  let expiresAt = new Date(endsNow).toISOString(), refreshes = 0;
+  markPaymentStarted('alice', endsNow);
+  // The page is loaded again: a new watcher reads what was stored.
+  const stop = watchPaymentAccess('alice', async () => ({ status: 'active', expiresAt }), async () => { refreshes++; });
+  try {
+    await setImmediate();
+    assert.equal(refreshes, 0);
+    expiresAt = new Date(endsNow + 30 * day).toISOString();
+    await b.tick();
+    assert.equal(refreshes, 1);
+  } finally { stop(); b.restore(); }
+});
+
+test('a payment has arrived when access begins, or when a running membership ends later than before', () => {
+  const end = 1_800_000_000_000;
+  // A member who was not paid up: active is the whole answer.
+  assert.equal(paymentLanded(true, null, null), true);
+  assert.equal(paymentLanded(true, end, null), true);
+  assert.equal(paymentLanded(false, null, null), false);
+  // A member who was paid up until `end`: only a later end counts.
+  assert.equal(paymentLanded(true, end, end), false);
+  assert.equal(paymentLanded(true, end - 1, end), false);
+  assert.equal(paymentLanded(true, end + 1, end), true);
+  assert.equal(paymentLanded(true, null, end), false);
+  assert.equal(paymentLanded(false, end + 1, end), false);
+});
+
+test('a paid-up member coming back to the page is not looked up, and their account is not reloaded', async () => {
+  const b = browser();
+  let reads = 0, refreshes = 0;
+  const stop = watchPaymentAccess('alice', async () => { reads++; return { status: 'active', expiresAt: null }; }, async () => { refreshes++; }, true);
+  try {
+    // Returning to the tab, again and again, with no payment being waited for.
+    for (let n = 0; n < 5; n++) {
+      b.window.dispatchEvent(new Event('focus'));
+      b.document.dispatchEvent(new Event('visibilitychange'));
+      await b.tick();
+    }
+    assert.equal(reads, 0);
+    assert.equal(refreshes, 0);
+    // Once they start paying for another month, coming back does look them up.
+    const endsNow = Date.now() + 86_400_000;
+    markPaymentStarted('alice', endsNow);
+    await setImmediate();
+    assert.equal(renewalPending('alice'), true);
+    const before = reads;
+    b.window.dispatchEvent(new Event('focus'));
+    await setImmediate();
+    assert.ok(reads > before);
+    assert.equal(refreshes, 0, 'active all along is not the month arriving');
+  } finally { stop(); b.restore(); }
+});
+
+test('a member without access is still looked up each time they come back to the page', async () => {
+  const b = browser();
+  let reads = 0;
+  const stop = watchPaymentAccess('alice', async () => { reads++; return { status: 'none', expiresAt: null }; }, async () => {});
+  try {
+    b.window.dispatchEvent(new Event('focus'));
+    await setImmediate();
+    assert.equal(reads, 1);
+    assert.equal(renewalPending('alice'), false);
   } finally { stop(); b.restore(); }
 });

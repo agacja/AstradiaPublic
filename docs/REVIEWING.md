@@ -13,14 +13,17 @@ Suggested review order:
 2. `frontend/src/utils/birthData.ts`: account changes clear unowned or foreign
    cached personal data.
 3. `frontend/src/utils/payment-access-watch.ts`: bounded polling, visibility/focus
-   refresh, account isolation, cleanup and transient-error handling.
+   refresh, account isolation, cleanup and transient-error handling; a renewal
+   is recognised by the membership's end moving later, and a paid-up member is
+   not looked up on every return to the page.
 4. `frontend/src/contracts.ts`: narrow output parsing and refusal to consume
    extra internal evaluation fields.
    `frontend/src/components/HyperliquidChart.tsx`: chart and WebSocket
    lifecycle. Each run of the chart effect owns a session that its history
    request, socket and reconnect timer check before acting, so a slow response
    or a late reconnect from the previous interval cannot write into the chart
-   that replaced it. `frontend/src/components/DailyAudioBriefing.tsx`:
+   that replaced it; a stream that keeps dropping is retried less and less
+   often (`frontend/src/utils/reconnect-delay.ts`). `frontend/src/components/DailyAudioBriefing.tsx`:
    abortable requests with timeouts, object-URL cleanup, and a remount key so
    one account's audio cannot linger for the next. Both are product modules
    that type-check and build here but are not mounted in the reviewer UI, so
@@ -30,15 +33,24 @@ Suggested review order:
    map lines, with a test of its invariants.
 5. `packages/social-store/social.go`: parameterized queries, relationship
    visibility and persisted consent; note the required calling-layer authorization.
+   Requests are serialized per pair and per sender with transaction-scoped
+   advisory locks, so a double click or two crossed requests have one outcome;
+   `social_db_test.go` races them against a real database.
 6. `services/ephemeris/src/main.rs`: validated requests, independent credentials,
-   bounded expensive work and a component-scoped source offer.
+   bounded expensive work (a burst waits for a calculation slot instead of being
+   refused), a graceful stop on SIGTERM and a component-scoped source offer.
 7. `packages/platform-core/src/state.rs` and `tests/state.rs`: atomic leases and
-   nonces, and the guard that releases on drop.
+   nonces, the guard that releases on drop, and Redis calls that fail instead of
+   waiting forever. `packages/platform-core/src/flight.rs`: request coalescing,
+   where callers asking for the same thing at the same moment share one piece
+   of work, with cancellation handled so an abandoned key never stays behind.
 8. `packages/platform-core/src/signing.rs` and `tests/signing_parity.rs`:
    byte-exact protocol hashing, and local verification of a remote signature.
+   Its tests run the remote signer against a stand-in provider that checks the
+   request's authorization signature the way the real one does.
 9. `packages/platform-core/src/vault.rs` and `packages/go-primitives/vault`: one
-   envelope format in two languages, each reading ciphertext written by the
-   earlier runtime.
+   envelope format in two languages; the Go package also opens the earlier
+   text layout, with both IV lengths it was written with.
 10. `packages/platform-core/src/webhooks.rs`: payment-notification verification
     that fails closed, with a test for each provider.
 11. `scripts/check-public-boundary.py`: the reviewed file manifest and publication

@@ -2,9 +2,11 @@ package socialstore
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"os"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -45,14 +47,18 @@ func TestFriendshipsOneQueryPreservesConsentAndAvatarVisibility(t *testing.T) {
 	// Session-local tables on one connection cannot modify existing accounts.
 	_, err = pool.Exec(ctx, `
 		CREATE TEMP TABLE users (id text PRIMARY KEY, nick text, avatar bytea, avatar_mime text);
-		CREATE TEMP TABLE friendships (id text, requester_id text, addressee_id text, status text, responded_at timestamptz);
+		CREATE TEMP TABLE friendships (id text, requester_id text, addressee_id text, status text, responded_at timestamptz, created_at timestamptz DEFAULT now());
 		CREATE TEMP TABLE synastry_consents (user_lo text, user_hi text, requested_by text, status text, UNIQUE(user_lo,user_hi));
 		INSERT INTO users VALUES ('me', 'Me', NULL, NULL);`)
 	if err != nil {
 		t.Fatal(err)
 	}
 	want := map[string]string{}
-	for i, consent := range []string{"none", "accepted", "pending-out", "pending-in", "hidden-decline", "declined"} {
+	// "hidden-decline" is a request of mine that was declined: I am shown it
+	// as still waiting. "cancelled-decline" is one I cancelled after that: I
+	// am shown nothing. "their-cancelled" is one I declined and they then
+	// cancelled: to me it is still the request I declined.
+	for i, consent := range []string{"none", "accepted", "pending-out", "pending-in", "hidden-decline", "declined", "cancelled-decline", "their-cancelled"} {
 		other := fmt.Sprintf("friend-%d", i)
 		if _, err := pool.Exec(ctx, `INSERT INTO users VALUES ($1, $2, $3, 'image/png')`, other, other, []byte{1, 2, 3}); err != nil {
 			t.Fatal(err)
@@ -73,7 +79,11 @@ func TestFriendshipsOneQueryPreservesConsentAndAvatarVisibility(t *testing.T) {
 			case "pending-in":
 				status = "pending"
 			case "hidden-decline":
-				status, requestedBy, want[other] = "declined", "me", "none"
+				status, requestedBy, want[other] = "declined", "me", "pending-out"
+			case "cancelled-decline":
+				status, requestedBy, want[other] = "withdrawn", "me", "none"
+			case "their-cancelled":
+				status, want[other] = "withdrawn", "declined"
 			}
 			lo, hi := pairLoHi("me", other)
 			if _, err := pool.Exec(ctx, `INSERT INTO synastry_consents VALUES ($1,$2,$3,$4)`, lo, hi, requestedBy, status); err != nil {
@@ -104,11 +114,17 @@ func TestFriendshipsOneQueryPreservesConsentAndAvatarVisibility(t *testing.T) {
 			t.Fatalf("changed friend visibility: %+v", friend)
 		}
 	}
-	if got.Incoming[0].UserID != "incoming" || got.Incoming[0].Avatar == "" || got.Incoming[0].Nick != displayName(nil, "incoming") {
+	if got.Incoming[0].UserID != "incoming" || got.Incoming[0].RequestID != "in" || got.Incoming[0].Nick != displayName(nil, "incoming") {
 		t.Fatalf("changed incoming request: %+v", got.Incoming)
 	}
-	if got.Outgoing[0].UserID != "outgoing" || got.Outgoing[0].Avatar != "" {
-		t.Fatalf("outgoing request must not expose an avatar: %+v", got.Outgoing)
+	if got.Outgoing[0].UserID != "outgoing" || got.Outgoing[0].RequestID != "out" || got.Outgoing[0].Nick != "Outgoing" {
+		t.Fatalf("changed outgoing request: %+v", got.Outgoing)
+	}
+	// A request carries no picture in either direction, although both of
+	// these members have one.
+	requests, err := json.Marshal([]any{got.Incoming, got.Outgoing})
+	if err != nil || strings.Contains(string(requests), "avatar") || strings.Contains(string(requests), "AQID") {
+		t.Fatalf("a request exposes a picture: %s (%v)", requests, err)
 	}
 	empty, err := s.ListFriendships(ctx, "no-friends")
 	if err != nil || empty.Accepted == nil || empty.Incoming == nil || empty.Outgoing == nil || len(empty.Accepted)+len(empty.Incoming)+len(empty.Outgoing) != 0 {

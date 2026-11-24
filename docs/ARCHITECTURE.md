@@ -93,7 +93,7 @@ account at once.
 | Astronomy service | Generic planetary positions and house geometry | Independent service source and existing license/data notices in `services/ephemeris` |
 | Go social service | Profiles, friendships, consent-aware comparisons, track record, and related product features | Social database package and schema (`packages/social-store`), credential envelope and a pure-Go position calculator (`packages/go-primitives`); comparison scoring, track-record accounting and HTTP layers excluded |
 | PostgreSQL | Durable accounts, memberships, payments, preferences, and relationships | Social and audio-cache table definitions only; no database dump |
-| Redis | Shared state, coordination, leases and caches | The lease, nonce and key/value scripts in `packages/platform-core`; no snapshot or deployment configuration |
+| Redis | Shared state, coordination, leases and caches | The lease, nonce and key/value scripts in `packages/platform-core`, with bounded waits; no snapshot or deployment configuration |
 
 ## 3. Request path
 
@@ -235,7 +235,7 @@ erDiagram
     USERS ||--o{ SYNASTRY_CONSENTS : "is one of the pair"
     USERS ||--o{ PROFILE_COMMENTS : "owns wall or writes"
     USERS ||--o| SOCIAL_SEEN : "has read markers"
-    USERS ||--o{ AUDIO_BRIEFINGS : "has daily narration"
+    USERS ||--o{ AUDIO_BRIEFINGS_V2 : "has daily narration"
 
     USERS {
         varchar id PK
@@ -274,10 +274,10 @@ erDiagram
         timestamptz synastry_seen_at
         timestamptz wall_seen_at
     }
-    AUDIO_BRIEFINGS {
+    AUDIO_BRIEFINGS_V2 {
         varchar user_id PK
         date briefing_date PK
-        varchar cache_key
+        bytea cache_key
         varchar status
         integer attempts
         uuid lease_id
@@ -296,7 +296,8 @@ Design choices visible in those definitions:
   friends receive computed results, never raw birth rows.
 - The audio cache carries its own lease columns, so duplicate paid generation
   across replicas is prevented in the database rather than in process memory
-  ([audio briefings](AUDIO-BRIEFINGS.md)).
+  ([audio briefings](AUDIO-BRIEFINGS.md)). Its cache key is the raw 32-byte
+  digest in a BYTEA column with a length check.
 
 ## 7. Execution safety
 

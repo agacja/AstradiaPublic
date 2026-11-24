@@ -1,6 +1,7 @@
 //! Platform primitives extracted from Astradia's native Rust API and worker.
 //! No signal evaluation, strategy, sizing or order-planning code is part of this crate.
 
+pub mod flight;
 pub mod http;
 pub mod membership;
 pub mod signing;

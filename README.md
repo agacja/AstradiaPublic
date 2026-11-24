@@ -16,7 +16,7 @@ maintained separately and is not included here.**
 | React + TypeScript | SVG glyphs, account-scoped chart storage, free-access presentation, membership synchronization, a live market-data chart, the audio briefing player, map-line geometry for astrocartography, a build guard that keeps server code out of the bundle, contract tests | Reused product modules, with a lightweight reviewer interface |
 | Rust + Axum | Standalone Swiss Ephemeris HTTP service, request validation, bounded CPU work, source distribution | The generic astronomy component used by the private platform |
 | Go + PostgreSQL | Social persistence, profile preferences, friendships, mutual consent, avatars, the social schema migrations, query regression tests | An extracted data-access package; not the complete production social API |
-| Rust platform core | AES-GCM credential envelope, atomic Redis leases and nonces, Hyperliquid action hashing and signing with a verified remote signer, Stripe and NOWPayments notification verification, the membership time check | Production modules from the private API and worker, with their tests; the routes, worker loop and engine that call them stay private |
+| Rust platform core | AES-GCM credential envelope, atomic Redis leases and nonces with bounded waits, request coalescing, Hyperliquid action hashing and signing with a verified remote signer, Stripe and NOWPayments notification verification, the membership time check | Production modules from the private API and worker, with their tests; the routes, worker loop and engine that call them stay private |
 | Go primitives | Credential envelope with a self-redacting secret type, and a pure-Go planetary position calculator | Production packages from the Go social service, standard library only |
 | Integration contracts | A minimal, illustrative signal-summary contract | Shows how a client consumes results without containing the evaluation algorithm |
 | Engineering documentation | Architecture, security model and execution safety with diagrams; scope, provenance, and release checks | Explains the private components without publishing their implementation |
@@ -95,8 +95,8 @@ production data. Go 1.25+ is required.
 **Rust platform core** — see [crate instructions](packages/platform-core/README.md).
 The security and coordination modules the private API and trading worker are
 built on, taken from the deployed source with their tests: the credential
-envelope, Redis leases and nonces, exchange action hashing and signing,
-payment-notification verification and the membership check. It builds and tests
+envelope, Redis leases and nonces, request coalescing, exchange action hashing
+and signing, payment-notification verification and the membership check. It builds and tests
 on its own, with no database, Redis instance or network access, which is the
 practical proof that none of it depends on the private engine.
 

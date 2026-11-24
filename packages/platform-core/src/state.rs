@@ -1,9 +1,10 @@
 //! Durable state, compatible with Go/TS bot:kv keys. No live in-memory fallback.
 use async_trait::async_trait;
+use redis::aio::ConnectionManagerConfig;
 use secrecy::{ExposeSecret, SecretString};
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::Value;
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::sync::Mutex;
 #[derive(Debug, thiserror::Error)]
 #[error("Persistent state unavailable")]
@@ -37,11 +38,23 @@ pub async fn write(s: &dyn Store, key: &str, value: &impl Serialize, ttl: u64) -
 pub struct RedisStore {
     connection: redis::aio::ConnectionManager,
 }
+/// Redis must answer or fail: the worker's lease renewal and trading loop both
+/// wait on this connection, and the library's default is to wait forever.
+const RESPONSE_TIMEOUT: Duration = Duration::from_secs(5);
+const CONNECTION_TIMEOUT: Duration = Duration::from_secs(5);
+fn connection_config(response: Duration, connection: Duration) -> ConnectionManagerConfig {
+    ConnectionManagerConfig::new()
+        .set_response_timeout(response)
+        .set_connection_timeout(connection)
+}
 impl RedisStore {
     pub async fn connect(url: &SecretString) -> Result<Self> {
+        Self::connect_with(url, connection_config(RESPONSE_TIMEOUT, CONNECTION_TIMEOUT)).await
+    }
+    async fn connect_with(url: &SecretString, config: ConnectionManagerConfig) -> Result<Self> {
         let client = redis::Client::open(url.expose_secret()).map_err(|_| StateError)?;
         let connection = client
-            .get_connection_manager()
+            .get_connection_manager_with_config(config)
             .await
             .map_err(|_| StateError)?;
         Ok(Self { connection })
@@ -178,5 +191,60 @@ impl Drop for Lease {
                 let _ = store.release(&key, &owner).await;
             });
         }
+    }
+}
+
+#[cfg(test)]
+mod timeout_tests {
+    use super::*;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    /// A server that accepts connections and optionally answers the client's
+    /// connection handshake, but never answers a data command.
+    async fn unresponsive_server(handshake: bool) -> SecretString {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("redis://{}", listener.local_addr().unwrap());
+        tokio::spawn(async move {
+            loop {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                tokio::spawn(async move {
+                    let mut buffer = [0_u8; 4096];
+                    while let Ok(read) = socket.read(&mut buffer).await {
+                        if read == 0 {
+                            break;
+                        }
+                        let text = String::from_utf8_lossy(&buffer[..read]).to_uppercase();
+                        if handshake {
+                            for _ in 0..text.matches("CLIENT").count() {
+                                let _ = socket.write_all(b"+OK\r\n").await;
+                            }
+                        }
+                    }
+                });
+            }
+        });
+        url.into()
+    }
+    fn short() -> ConnectionManagerConfig {
+        let limit = Duration::from_millis(200);
+        connection_config(limit, limit).set_number_of_retries(0)
+    }
+
+    #[tokio::test]
+    async fn connecting_to_a_silent_server_fails_instead_of_hanging() {
+        let url = unresponsive_server(false).await;
+        let started = std::time::Instant::now();
+        assert!(RedisStore::connect_with(&url, short()).await.is_err());
+        assert!(started.elapsed() < Duration::from_secs(3));
+    }
+
+    #[tokio::test]
+    async fn a_command_that_is_never_answered_fails_instead_of_hanging() {
+        let url = unresponsive_server(true).await;
+        let store = RedisStore::connect_with(&url, short()).await.unwrap();
+        let started = std::time::Instant::now();
+        assert!(store.get("anything").await.is_err());
+        assert!(store.lease("worker", "owner", 60_000).await.is_err());
+        assert!(started.elapsed() < Duration::from_secs(3));
     }
 }

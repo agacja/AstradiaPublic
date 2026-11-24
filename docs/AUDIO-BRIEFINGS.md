@@ -4,7 +4,7 @@ The production Rust API serves paid, authenticated daily briefings from the memb
 
 ## Configuration and deployment
 
-Set server-only `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID` and `ELEVENLABS_MODEL_ID` on the API service. The voice and model are deployment configuration. No credentials are included in the frontend. The Rust API creates only its additive `audio_briefings` table and index on startup under a PostgreSQL advisory lock. The migration is safe to repeat; existing billing, user and trading data is unchanged. No Node backend is used.
+Set server-only `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID` and `ELEVENLABS_MODEL_ID` on the API service. The voice and model are deployment configuration. No credentials are included in the frontend. The Rust API creates its additive `audio_briefings_v2` table on startup under a PostgreSQL advisory lock. The migration is safe to repeat; existing billing, user and trading data is unchanged. No Node backend is used.
 
 ## API and access
 

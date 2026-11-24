@@ -12,17 +12,21 @@ does not start an HTTP server, provision accounts, or run migrations.
 
 ## Tests
 
-Use Go 1.25+ and PostgreSQL 16. The integration test creates session-local
-temporary tables and uses synthetic identifiers. It refuses a non-loopback
-database or the usual production port.
+Use Go 1.25+ and PostgreSQL 16. The database tests use synthetic identifiers
+and refuse a non-loopback database or the usual production port. One creates
+session-local temporary tables; the others (`social_db_test.go`) each get a
+freshly named schema with a minimal `users` table and this package's
+migrations applied on top (`testdb_test.go`), dropped when the test ends. They
+include requests raced from many goroutines at once, which must leave exactly
+one friendship row and an answer for every caller.
 
 ```sh
 # Against your disposable PostgreSQL instance, never a production database:
 PLATFORM_TEST_DATABASE_URL=postgres://postgres:local-test-only@127.0.0.1:55443/postgres go test -race ./...
 ```
 
-Without the variable, `go test -race ./...` compiles the package and reports the
-database test as skipped. CI supplies the variable and a dedicated test service.
+Without the variable, `go test -race ./...` runs the unit tests and reports the
+database tests as skipped. CI supplies the variable and a dedicated test service.
 
 ## Schema
 

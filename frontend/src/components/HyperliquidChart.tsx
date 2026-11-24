@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, memo } from 'react';
+import { reconnectDelay } from '../utils/reconnect-delay';
 import { createChart, ColorType, CrosshairMode, CandlestickSeries, HistogramSeries, AreaSeries } from 'lightweight-charts';
 import type { IChartApi, ISeriesApi, CandlestickData, Time, HistogramData } from 'lightweight-charts';
 import { ChartLine } from 'lucide-react';
@@ -23,7 +24,7 @@ interface HyperliquidChartProps {
 type CandleInterval = '1m' | '3m' | '5m' | '15m' | '30m' | '1h' | '2h' | '4h' | '8h' | '12h' | '1d' | '3d' | '1w' | '1M';
 
 /** One run of the chart effect for a given symbol + interval. */
-type ChartSession = { live: boolean };
+type ChartSession = { live: boolean; failedAttempts: number };
 
 const INTERVAL_TO_MS: Record<string, number> = {
   '1m': 60 * 1000,
@@ -179,7 +180,7 @@ function HyperliquidChartComponent({ symbol, height = 620, interval = '15m', lab
     // belongs to this symbol + interval. `live` goes false on cleanup, so a
     // slow response or a late timer from the previous selection can never
     // write into the chart that replaced it.
-    const session: ChartSession = { live: true };
+    const session: ChartSession = { live: true, failedAttempts: 0 };
 
     // Fetch initial historical data from Hyperliquid
     fetchHistoricalData(session);
@@ -295,6 +296,7 @@ function HyperliquidChartComponent({ symbol, height = 620, interval = '15m', lab
       wsRef.current = ws;
 
       ws.onopen = () => {
+        session.failedAttempts = 0;
         setIsConnected(true);
         // Subscribe to candle updates for this symbol
         ws.send(JSON.stringify({
@@ -349,10 +351,12 @@ function HyperliquidChartComponent({ symbol, height = 620, interval = '15m', lab
         // cleanup can cancel it, and it re-checks the session so it can only
         // ever reconnect the selection it was scheduled for.
         if (event.code !== 1000 && session.live) {
+          const wait = reconnectDelay(session.failedAttempts);
+          session.failedAttempts += 1;
           reconnectTimerRef.current = setTimeout(() => {
             reconnectTimerRef.current = null;
             connectWebSocket(session);
-          }, 3000);
+          }, wait);
         }
       };
     } catch (e) {

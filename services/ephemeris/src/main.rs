@@ -77,11 +77,14 @@ async fn calculate(
     {
         return Err(StatusCode::BAD_REQUEST);
     }
+    // Wait for a calculation slot. Refusing every caller beyond the slots made
+    // an ordinary burst fail outright; the request quota still bounds the queue.
     let permit = app
         .cpu
         .clone()
-        .try_acquire_owned()
-        .map_err(|_| StatusCode::TOO_MANY_REQUESTS)?;
+        .acquire_owned()
+        .await
+        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
     tokio::task::spawn_blocking(move || {
         let _permit = permit;
         let jd = req.timestamp_ms as f64 / 86_400_000. + 2_440_587.5;
@@ -141,6 +144,22 @@ async fn main() {
         std::process::exit(1);
     }
 }
+/// Resolves on Ctrl-C and, on Unix, on SIGTERM, which is what a container
+/// platform sends to stop a deployment. The handler is installed before this
+/// returns, so a signal can never arrive ahead of it.
+fn shutdown_signal() -> std::io::Result<impl std::future::Future<Output = ()>> {
+    #[cfg(unix)]
+    let mut terminate = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
+    Ok(async move {
+        #[cfg(unix)]
+        tokio::select! {
+            _ = tokio::signal::ctrl_c() => {}
+            _ = terminate.recv() => {}
+        }
+        #[cfg(not(unix))]
+        let _ = tokio::signal::ctrl_c().await;
+    })
+}
 async fn run() -> Result<(), ()> {
     let secret = SecretString::from(std::env::var("EPHEMERIS_SERVICE_SECRET").map_err(|_| ())?);
     if secret.expose_secret().len() < 32 {
@@ -185,10 +204,65 @@ async fn run() -> Result<(), ()> {
         .with_state(app);
     let addr = std::env::var("EPHEMERIS_BIND").unwrap_or_else(|_| "127.0.0.1:8091".into());
     let socket = tokio::net::TcpListener::bind(addr).await.map_err(|_| ())?;
+    let shutdown = shutdown_signal().map_err(|_| ())?;
     axum::serve(socket, routes)
-        .with_graceful_shutdown(async {
-            let _ = tokio::signal::ctrl_c().await;
-        })
+        .with_graceful_shutdown(shutdown)
         .await
         .map_err(|_| ())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn app() -> App {
+        sweph::set_ephe_path(&format!("{}/data/ephemeris", env!("CARGO_MANIFEST_DIR")));
+        App {
+            secret: Arc::new(SecretString::from("s".repeat(32))),
+            cpu: Arc::new(Semaphore::new(2)),
+            quota: Arc::new(Mutex::new((Instant::now(), 0))),
+        }
+    }
+
+    #[tokio::test]
+    async fn a_calculation_beyond_the_slots_waits_instead_of_being_refused() {
+        let app = app();
+        // Both calculation slots are busy.
+        let busy = app.cpu.clone().acquire_many_owned(2).await.unwrap();
+        let request = Calculation {
+            timestamp_ms: 1_700_000_000_000,
+            latitude: None,
+            longitude: None,
+        };
+        let waiting = tokio::spawn(calculate(State(app.clone()), Json(request)));
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        assert!(!waiting.is_finished());
+        drop(busy);
+        let answer = tokio::time::timeout(Duration::from_secs(10), waiting)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(answer.is_ok_and(|result| result.0.true_node.is_finite()));
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn sigterm_starts_a_graceful_shutdown() {
+        let shutdown = shutdown_signal().unwrap();
+        let mut shutdown = std::pin::pin!(shutdown);
+        // Not resolved until a signal arrives.
+        assert!(
+            tokio::time::timeout(Duration::from_millis(50), &mut shutdown)
+                .await
+                .is_err()
+        );
+        let sent = std::process::Command::new("kill")
+            .args(["-TERM", &std::process::id().to_string()])
+            .status()
+            .unwrap();
+        assert!(sent.success());
+        tokio::time::timeout(Duration::from_secs(5), shutdown)
+            .await
+            .unwrap();
+    }
 }

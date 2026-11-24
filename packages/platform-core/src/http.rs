@@ -22,6 +22,18 @@ pub fn http_client() -> Result<reqwest::Client> {
         .map_err(|_| HttpError::Unavailable)
 }
 
+/// The one client, and so the one connection pool, for callers that would
+/// otherwise build a client per account or per request. Same timeouts and
+/// no-redirect policy as [`http_client`]; clones share the pool.
+pub fn shared_http_client() -> Result<reqwest::Client> {
+    static CLIENT: std::sync::OnceLock<reqwest::Client> = std::sync::OnceLock::new();
+    if let Some(client) = CLIENT.get() {
+        return Ok(client.clone());
+    }
+    let client = http_client()?;
+    Ok(CLIENT.get_or_init(|| client).clone())
+}
+
 pub async fn bounded_json(mut response: reqwest::Response, max: usize) -> Result<Value> {
     let mut bytes = Vec::new();
     while let Some(chunk) = response.chunk().await.map_err(|_| HttpError::Unavailable)? {

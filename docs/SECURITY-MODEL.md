@@ -137,9 +137,9 @@ flowchart TB
 ```
 
 The envelope exists in two languages (`platform-core/src/vault.rs`,
-`go-primitives/vault`) tested with the same key and plaintext, and both still
-read the older text layout, which is how a runtime migration can avoid
-rewriting rows. In Go the decrypted value is a type whose `String`, `GoString`
+`go-primitives/vault`) tested with the same synthetic key and plaintext. The
+Go package also opens the older text layout, with either IV length the layout
+was written with; the Rust envelope reads the binary layout only. In Go the decrypted value is a type whose `String`, `GoString`
 and `MarshalJSON` all return a redaction marker, so it cannot reach a log line
 or a JSON encoder by accident; in Rust it is a `SecretString`. Every use is an
 explicit, greppable reveal.
@@ -190,7 +190,10 @@ sequenceDiagram
   when the secret is empty.
 - The browser side is `frontend/src/utils/payment-access-watch.ts`: bounded
   polling, refresh on focus and visibility, and cleanup when the account
-  changes.
+  changes. A renewal counts as arrived only when the membership's end moves
+  later, and a member who already has access is looked up only while a
+  payment they started is awaited, so returning to the page does not reload
+  their account.
 
 ## Fail-closed properties and the tests that pin them
 
@@ -200,13 +203,16 @@ properties below are the ones whose code and tests are published.
 | Property | Test in `packages/platform-core` |
 | --- | --- |
 | A tampered ciphertext, a wrong version byte or a short blob does not decrypt | `vault::tests::v1_roundtrip_and_tampering` |
-| Ciphertext from the earlier runtime decrypts without migration | `vault::compatibility::node_legacy_and_bytea_blobs_decrypt_without_migration` |
+| A blob in the layout the Go package writes, under the same synthetic key, decrypts here | `vault::compatibility::binary_blobs_in_the_go_package_layout_decrypt` |
 | A notification with a changed body, a stale timestamp or an empty secret is rejected | `webhooks::tests::stripe_requires_exact_bytes_and_fresh_timestamp` |
 | Key order cannot change a notification's signature | `webhooks::tests::now_signature_is_order_independent_and_fails_closed` |
 | An inactive, expired or unparseable subscription is not a subscription | `membership::tests::subscription_requires_active_status_and_unexpired_valid_date` |
 | An action hashes and signs to the bytes recorded in the golden vectors | `signing_parity::matches_all_existing_sdk_golden_vectors` |
+| A remote signer's refusal, or a signature made by any wallet but the expected one, never becomes a signature | `signing::tests::a_refusal_or_a_signature_by_another_wallet_never_becomes_a_signature` |
+| Only the signing provider's short refusal code is logged, never its message | `signing::tests::only_the_providers_short_code_is_taken_from_a_refusal` |
 | A lease is exclusive, owner-checked and renewable only by its owner | `state::lease_is_exclusive_until_released_and_owner_checked`, `state::same_owner_renews_and_expired_lease_can_be_taken` |
 | A nonce never repeats when the clock stalls or steps back | `state::nonce_never_repeats_when_the_clock_stalls_or_goes_back` |
+| A Redis that stops answering fails the call instead of holding it forever | `state::timeout_tests::connecting_to_a_silent_server_fails_instead_of_hanging`, `state::timeout_tests::a_command_that_is_never_answered_fails_instead_of_hanging` |
 
 ## Social consent
 

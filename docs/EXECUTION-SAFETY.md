@@ -184,6 +184,8 @@ rehearsal unhealthy. It repeats periodically while it runs.
 - Emergency work is written down by the API and carried out only by the
   lease-holding worker, and can only reduce exposure. An operator request
   cannot open or increase a position.
+- A global stop does not hold back a member's own close or reduction: those
+  orders can only lower exposure.
 - Closing a position, disabling the bot and clearing a stored key remain
   available to a member whose subscription has expired. Expiry removes access
   to signals; it never removes the ability to get out.

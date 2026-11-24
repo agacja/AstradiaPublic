@@ -1,7 +1,7 @@
-// Package vault is the ONLY place plaintext trading secrets may exist, and
-// they never leave this process: callers get to USE a secret (build a signer,
-// derive a client) but the raw bytes are never serialized. Storage is
-// AES-256-GCM in Postgres BYTEA.
+// Package vault seals stored credentials with AES-256-GCM in a versioned
+// binary layout for a PostgreSQL BYTEA column, and opens them into a Secret
+// whose raw bytes are never serialized: callers USE a secret (build a signer,
+// derive a client) through an explicit Reveal.
 package vault
 
 import (
@@ -18,6 +18,11 @@ const (
 	// formatV1 is the bytea layout: 0x01 || nonce(12) || ciphertext||tag.
 	formatV1  = 0x01
 	nonceSize = 12
+	// legacyNonceSize is the IV length the earlier runtime's encrypt() used
+	// for the text layout (crypto.randomBytes(16)). GCM accepts it, but only
+	// through a cipher built for that nonce length.
+	legacyNonceSize = 16
+	gcmTagSize      = 16
 )
 
 var (
@@ -39,7 +44,12 @@ func (s Secret) MarshalJSON() ([]byte, error) { return []byte(`"[redacted]"`), n
 func (s Secret) Reveal() []byte { return s.v }
 
 // Vault encrypts/decrypts with a single 32-byte key.
-type Vault struct{ aead cipher.AEAD }
+type Vault struct {
+	aead cipher.AEAD
+	// legacy16 opens text-layout values written with a 16-byte IV. It is never
+	// used to encrypt: every new write is the v1 bytea layout.
+	legacy16 cipher.AEAD
+}
 
 func New(hexKey string) (*Vault, error) {
 	key, err := hex.DecodeString(strings.TrimSpace(hexKey))
@@ -54,7 +64,11 @@ func New(hexKey string) (*Vault, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Vault{aead: aead}, nil
+	legacy16, err := cipher.NewGCMWithNonceSize(block, legacyNonceSize)
+	if err != nil {
+		return nil, err
+	}
+	return &Vault{aead: aead, legacy16: legacy16}, nil
 }
 
 // Encrypt seals plaintext into the v1 bytea layout.
@@ -82,9 +96,11 @@ func (v *Vault) Decrypt(blob []byte) (Secret, error) {
 	return Secret{v: pt}, nil
 }
 
-// DecryptLegacy opens the TypeScript server's format: "iv:authTag:ciphertext"
-// as hex strings in a TEXT column (lib/encryption.ts). Same key, so rows can
-// be migrated in place to bytea without re-entering any secret.
+// DecryptLegacy opens the earlier TypeScript runtime's text layout:
+// "iv:authTag:ciphertext" as hex strings, under the same key.
+//
+// That layout was written with two IV lengths: 16 bytes by the earlier
+// runtime's encrypt(), 12 by later writers. Both open here.
 func (v *Vault) DecryptLegacy(s string) (Secret, error) {
 	parts := strings.Split(s, ":")
 	if len(parts) != 3 {
@@ -93,11 +109,20 @@ func (v *Vault) DecryptLegacy(s string) (Secret, error) {
 	iv, err1 := hex.DecodeString(parts[0])
 	tag, err2 := hex.DecodeString(parts[1])
 	ct, err3 := hex.DecodeString(parts[2])
-	if err1 != nil || err2 != nil || err3 != nil || len(iv) != nonceSize {
+	if err1 != nil || err2 != nil || err3 != nil || len(tag) != gcmTagSize {
+		return Secret{}, ErrBadCiphertext
+	}
+	var aead cipher.AEAD
+	switch len(iv) {
+	case nonceSize:
+		aead = v.aead
+	case legacyNonceSize:
+		aead = v.legacy16
+	default:
 		return Secret{}, ErrBadCiphertext
 	}
 	// Go's GCM wants ciphertext||tag concatenated.
-	pt, err := v.aead.Open(nil, iv, append(ct, tag...), nil)
+	pt, err := aead.Open(nil, iv, append(ct, tag...), nil)
 	if err != nil {
 		return Secret{}, fmt.Errorf("vault: legacy: %w", err)
 	}
