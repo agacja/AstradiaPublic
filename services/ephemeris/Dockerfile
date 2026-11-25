@@ -1,6 +1,6 @@
 FROM rust:1.94-bookworm AS build
 WORKDIR /build
-COPY Cargo.toml Cargo.lock build.rs LICENSE SWISS-LICENSE PROTOCOL-LICENSE README.md Dockerfile ./
+COPY Cargo.toml Cargo.lock build.rs clippy.toml LICENSE SWISS-LICENSE PROTOCOL-LICENSE README.md Dockerfile ./
 COPY src ./src
 COPY data ./data
 RUN cargo build --release --locked

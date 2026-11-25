@@ -16,7 +16,8 @@ model behavior even when the implementation itself is absent.
 - Social persistence and consent-query code, with synthetic test data, and the
   definitions of the tables it uses.
 - Platform security and coordination primitives that contain no evaluation or
-  execution logic: the credential envelope, distributed leases and nonces,
+  execution logic: the credential envelope, distributed leases, nonces,
+  counters and queues,
   exchange-protocol hashing and signing, payment-notification verification and
   the membership time check.
   Their keys, vectors and fixtures are synthetic.

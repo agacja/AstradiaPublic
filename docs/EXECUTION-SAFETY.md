@@ -7,9 +7,9 @@ decision out at most once, by one process, with a signature that was checked,
 and about an operator always being able to stop it.
 
 The primitives these guarantees are built from are published in
-[`packages/platform-core`](../packages/platform-core): the lease, nonce and
-key/value store in `state.rs`, and hashing, signing and signature verification
-in `signing.rs`. The worker loop, the exchange adapter and the policy that
+[`packages/platform-core`](../packages/platform-core): the lease, nonce,
+key/value, counter and queue store in `state.rs`, and hashing, signing and
+signature verification in `signing.rs`. The worker loop, the exchange adapter and the policy that
 calls them are private. This document describes the source as deployed in
 November 2026.
 
@@ -110,7 +110,9 @@ flowchart TB
   the outcome is certain.
 - Receipts go through an outbox in the same durable store and are delivered to
   the API afterwards, so reporting a trade can fail and be retried without
-  touching the trade itself.
+  touching the trade itself. Each receipt waits in a queue under its own id
+  (`state.rs`), so one already waiting is never added twice, and adding one
+  costs the same however many wait.
 - Nonces come from a per-signer counter that takes the larger of the clock and
   the previous value plus one. It cannot repeat when the clock stalls, steps
   back, or two requests arrive in the same millisecond

@@ -60,6 +60,10 @@ impl<'a, K: Eq + Hash + Clone, C: Slot> Leave<'a, K, C> {
     }
 }
 impl<K: Eq + Hash, C: Slot> Leave<'_, K, C> {
+    #[expect(
+        clippy::expect_used,
+        reason = "the cell is set in join and only taken in drop, after the last use"
+    )]
     fn cell(&self) -> &C {
         self.cell.as_deref().expect("held until the caller leaves")
     }
@@ -141,35 +145,75 @@ impl<K: Eq + Hash + Clone, V: Clone> Blocking<K, V> {
 pub struct Cached<K, V, E> {
     ttl: Duration,
     capacity: usize,
-    values: Mutex<HashMap<K, (Instant, V)>>,
+    values: Mutex<Kept<K, V>>,
     flights: Group<K, Result<V, E>>,
+}
+/// The values a [`Cached`] holds, each with the moment it stops being reused
+/// and the use it was last read at, counted by `uses`.
+struct Kept<K, V> {
+    values: HashMap<K, (Instant, u64, V)>,
+    uses: u64,
 }
 impl<K: Eq + Hash + Clone, V: Clone, E: Clone> Cached<K, V, E> {
     pub fn new(ttl: Duration, capacity: usize) -> Self {
         Self {
             ttl,
             capacity: capacity.max(1),
-            values: Mutex::new(HashMap::new()),
+            values: Mutex::new(Kept {
+                values: HashMap::new(),
+                uses: 0,
+            }),
             flights: Group::new(),
         }
     }
     fn fresh(&self, key: &K) -> Option<V> {
-        locked(&self.values)
-            .get(key)
-            .filter(|(stored, _)| stored.elapsed() < self.ttl)
-            .map(|(_, value)| value.clone())
+        let now = Instant::now();
+        let mut kept = locked(&self.values);
+        kept.uses = kept.uses.saturating_add(1);
+        let uses = kept.uses;
+        let (until, used, value) = kept.values.get_mut(key)?;
+        if now >= *until {
+            return None;
+        }
+        *used = uses;
+        Some(value.clone())
     }
-    fn keep(&self, key: K, value: V) {
-        let mut values = locked(&self.values);
-        if values.len() >= self.capacity && !values.contains_key(&key) {
-            values.retain(|_, (stored, _)| stored.elapsed() < self.ttl);
-            if values.len() >= self.capacity {
-                values.clear();
+    /// Keeps `value` for `ttl`. When the cache is full, what has expired goes
+    /// first, and then the value read least recently, one at a time: a full
+    /// cache never drops the values in steady use, so it cannot send every
+    /// caller back to the work at once.
+    fn keep(&self, key: K, value: V, ttl: Duration) {
+        let now = Instant::now();
+        let mut kept = locked(&self.values);
+        if kept.values.len() >= self.capacity && !kept.values.contains_key(&key) {
+            kept.values.retain(|_, (until, ..)| now < *until);
+            while kept.values.len() >= self.capacity {
+                let oldest = kept
+                    .values
+                    .iter()
+                    .min_by_key(|(_, (_, used, _))| *used)
+                    .map(|(key, _)| key.clone());
+                let Some(oldest) = oldest else { break };
+                kept.values.remove(&oldest);
             }
         }
-        values.insert(key, (Instant::now(), value));
+        kept.uses = kept.uses.saturating_add(1);
+        let uses = kept.uses;
+        // A lifetime too long to add to the clock is no lifetime at all.
+        let until = now.checked_add(ttl).unwrap_or(now);
+        kept.values.insert(key, (until, uses, value));
     }
     pub async fn get<F, Fut>(&self, key: K, work: F) -> Result<V, E>
+    where
+        F: FnOnce() -> Fut,
+        Fut: Future<Output = Result<V, E>>,
+    {
+        self.get_for(key, self.ttl, work).await
+    }
+    /// [`Cached::get`], keeping a new result for `ttl` instead of the
+    /// cache's own lifetime. A value already kept is reused until its own
+    /// lifetime ends.
+    pub async fn get_for<F, Fut>(&self, key: K, ttl: Duration, work: F) -> Result<V, E>
     where
         F: FnOnce() -> Fut,
         Fut: Future<Output = Result<V, E>>,
@@ -184,7 +228,7 @@ impl<K: Eq + Hash + Clone, V: Clone, E: Clone> Cached<K, V, E> {
                     return Ok(value);
                 }
                 let value = work().await?;
-                self.keep(key.clone(), value.clone());
+                self.keep(key.clone(), value.clone(), ttl);
                 Ok(value)
             })
             .await
@@ -323,12 +367,87 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
+    async fn a_result_kept_for_its_own_lifetime_outlives_the_caches_default() {
+        let cache = Cached::<&str, usize, ()>::new(Duration::from_secs(30), 8);
+        let runs = AtomicUsize::new(0);
+        let work = || async { Ok(runs.fetch_add(1, Ordering::SeqCst) + 1) };
+        assert_eq!(
+            cache.get_for("day", Duration::from_secs(3600), work).await,
+            Ok(1)
+        );
+        assert_eq!(cache.get("minute", work).await, Ok(2));
+        tokio::time::advance(Duration::from_secs(31)).await;
+        // The default lifetime has passed for one, not for the other. A
+        // value already kept is not given a new lifetime by a later caller.
+        assert_eq!(cache.get("day", work).await, Ok(1));
+        assert_eq!(cache.get("minute", work).await, Ok(3));
+        tokio::time::advance(Duration::from_secs(3570)).await;
+        assert_eq!(
+            cache.get_for("day", Duration::from_secs(3600), work).await,
+            Ok(4)
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
     async fn the_cache_stays_within_its_capacity() {
         let cache = Cached::<u32, u32, ()>::new(Duration::from_secs(30), 4);
         for key in 0..40 {
             assert_eq!(cache.get(key, || async { Ok(key) }).await, Ok(key));
         }
-        assert!(locked(&cache.values).len() <= 4);
+        assert!(locked(&cache.values).values.len() <= 4);
+    }
+
+    /// Full, the cache drops the value read least recently, one value at a
+    /// time. It used to drop every value at once, sending every caller back
+    /// to the work together.
+    #[tokio::test(start_paused = true)]
+    async fn a_full_cache_drops_the_value_read_least_recently_and_nothing_else() {
+        let cache = Cached::<u32, u32, ()>::new(Duration::from_secs(3600), 3);
+        let runs = AtomicUsize::new(0);
+        let get = |key: u32| {
+            let runs = &runs;
+            let cache = &cache;
+            async move {
+                let work = || async move {
+                    runs.fetch_add(1, Ordering::SeqCst);
+                    Ok(key)
+                };
+                assert_eq!(cache.get(key, work).await, Ok(key));
+            }
+        };
+        for key in [1, 2, 3] {
+            get(key).await;
+        }
+        // 1 and 3 are read again, so 2 is the one read least recently.
+        get(1).await;
+        get(3).await;
+        assert_eq!(runs.load(Ordering::SeqCst), 3);
+        get(4).await;
+        assert_eq!(runs.load(Ordering::SeqCst), 4);
+        // Everything but 2 is still kept.
+        for key in [1, 3, 4] {
+            get(key).await;
+        }
+        assert_eq!(runs.load(Ordering::SeqCst), 4);
+        get(2).await;
+        assert_eq!(runs.load(Ordering::SeqCst), 5);
+        assert_eq!(locked(&cache.values).values.len(), 3);
+        // What has expired goes before anything still in use.
+        let short = Cached::<u32, u32, ()>::new(Duration::from_secs(3600), 2);
+        let kept = |key: u32, ttl: u64| {
+            short.get_for(
+                key,
+                Duration::from_secs(ttl),
+                move || async move { Ok(key) },
+            )
+        };
+        kept(1, 10).await.unwrap();
+        kept(2, 3600).await.unwrap();
+        tokio::time::advance(Duration::from_secs(11)).await;
+        // 2 is the one read least recently, but 1 has expired.
+        kept(3, 3600).await.unwrap();
+        let held = locked(&short.values);
+        assert!(held.values.contains_key(&2) && held.values.contains_key(&3));
     }
 
     #[test]

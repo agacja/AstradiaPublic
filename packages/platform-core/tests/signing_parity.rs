@@ -1,3 +1,5 @@
+// Test code, helpers included: a failed unwrap is a failed test.
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 use astradia_platform_core::signing::{self, LocalSigner, Signer};
 use ethers_core::types::Address;
 use serde_json::Value;

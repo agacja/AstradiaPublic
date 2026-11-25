@@ -20,3 +20,18 @@ tokio = { version = "1", features = ["full"] }
 [build-dependencies]
 tar = "0.4"
 flate2 = "1"
+
+[lints.rust]
+unsafe_code = "forbid"
+[lints.clippy]
+await_holding_lock = "deny"
+# No unwrap or expect outside tests (clippy.toml allows them in tests).
+unwrap_used = "deny"
+expect_used = "deny"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "debuginfo"
+# Integer overflow panics in release as it does in debug, instead of wrapping.
+overflow-checks = true

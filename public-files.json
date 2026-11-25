@@ -2,6 +2,9 @@
   "version": 1,
   "purpose": "Explicitly reviewed public files; updates require source and disclosure review.",
   "files": {
+    ".cargo/audit.toml": {
+      "sha256": "de7de39b41bbc4ba5e2a1627bc867164ab523e33bccf6ad5410f81d39fd04648"
+    },
     ".gitattributes": {
       "sha256": "c25502148c64629ec29fb24f3bbba164abfe227296f091174cfcc49f741bd16b"
     },
@@ -12,7 +15,10 @@
       "sha256": "c381497584000d70d052806cdd0ae92786c751feaae6191bb01e18fcad1a75c7"
     },
     ".github/workflows/checks.yml": {
-      "sha256": "72fcb5d007e9de86d8f0b59886a93f66978b5869317e2f1b4cd4be0be27172b0"
+      "sha256": "1f23b235356a2b01e541522132f2a81e7f6e4120c84daa2c9e410f3a5df4ffa4"
+    },
+    ".github/workflows/supply-chain.yml": {
+      "sha256": "170598c8707af060f00a8b5f8bbc3a4e5e261e6bf5bb6a33e8ea87d4b0112b25"
     },
     ".gitignore": {
       "sha256": "2084f1147fb0a466de89ad773d0d25d7e92b63a17a3a9be223b0288543fc16d6"
@@ -24,7 +30,7 @@
       "sha256": "01697cb2c9e41ae86f407d0807a11e86a59396e0cbbc5a31bf1881ffc938cf5d"
     },
     "README.md": {
-      "sha256": "771983b0658dc7347ae619416e8bdcaac87ee3a4fd4ba9653d18debbcd1fe091"
+      "sha256": "f4c7159eb0d252d2e836d3947c165ea8cf245325ea4ba5513aeccdea98aec9b4"
     },
     "SECURITY.md": {
       "sha256": "b097fabf350f2b99d6f7df3f30f8e248fbc6bbbaf6447873566b6a67c3d795fd"
@@ -32,26 +38,29 @@
     "contracts/signal-summary.schema.json": {
       "sha256": "078f48cf27e0835240f28fb004e8a1889e78d6456c4ac0968bce23d37993b956"
     },
+    "deny.toml": {
+      "sha256": "8e8751a05789e3e276cd9ec04fc19918e3efbb347cbb808eaecf8129838cec87"
+    },
     "docs/ARCHITECTURE.md": {
-      "sha256": "378d8aee2deae840f1c8bf0d69852f6af537a94128876a23d65c78710220fbbc"
+      "sha256": "a00d23b0ec549d178997b51ed0eda5007b0647b34e4a467975a84e380a6391e8"
     },
     "docs/AUDIO-BRIEFINGS.md": {
       "sha256": "76309fe775e5199fe2e1ed7ce905fb835686de23845f6e0a3cc060096171d572"
     },
     "docs/EXECUTION-SAFETY.md": {
-      "sha256": "3ceeea2873ae20b1328cb9cbfd05881b8d74781d492a10bfbcfc7c70981e526e"
+      "sha256": "8d1a1bbfa0196d0daafdc26fbc1eeac1eb9088c7fec52dfdd5b97ca4792edd74"
     },
     "docs/PROVENANCE.md": {
-      "sha256": "e0b402891fdffbbf24fbe1def2a1737054028b772bb6b29d121c1a794c156e3d"
+      "sha256": "3b9584e8c1ed2cf3cfaf65f359f0a3abd076c28fff151a61a2afa9692ef8c828"
     },
     "docs/PUBLIC-BOUNDARY.md": {
-      "sha256": "d04d6cd6c7a700823b6ef0fa2e68415d3fbe9d7bdefcd0a2210d92034579f4cd"
+      "sha256": "7edad45b93d4a1345999dcef4d3e90250bf1783e0867ebdeb92bf2cd7792de7b"
     },
     "docs/REVIEWING.md": {
-      "sha256": "325750c1227b223e01dc4b510e26debf8e922b977d31ae54afa9d6a0e04508b1"
+      "sha256": "ada6b37d0b847971ed61ce9e311dca640f594deb4920c0b7aeab78f0b02cbbd7"
     },
     "docs/SECURITY-MODEL.md": {
-      "sha256": "f5f51a73f7496141f89a6253ee73ff4d922293681b769a1fd345679418f5479d"
+      "sha256": "a011bb5c66af0fd978081292fbf87ef150f7684caba1e549ce8c798bf243d555"
     },
     "docs/schema/audio-briefings.sql": {
       "sha256": "4feab863e15080f704ae874e4dc8d1fa749f514b43eb1b92a4461a72a8be5719"
@@ -78,7 +87,7 @@
       "sha256": "1601fd3c0b131aadf45a8104632b6870d630b7593978bc832e9afd099d48340f"
     },
     "frontend/src/components/HyperliquidChart.tsx": {
-      "sha256": "158688f8756271cd891694cf9eea79d225d3d1e77e8a5e3d4b2500e5eacc2b62"
+      "sha256": "ae9b0bf901ee5f847fc26e294bf0888fed57002323cf4d0cbab1716b77ed06c3"
     },
     "frontend/src/contracts.ts": {
       "sha256": "e30b998c2191d7cb4e500aa0b4d06577e97ebfe294cd20ee7e2f713c60a93280"
@@ -144,7 +153,7 @@
       "sha256": "d9244e9bde7547546422fce0cd0ae6a9f35ecfcce23bd4dbd437046ed622fb80"
     },
     "packages/go-primitives/README.md": {
-      "sha256": "989c062f0b41cd4f603672dbee9f82dddffee250b437ecc4144d0e080133a2ce"
+      "sha256": "b301efd3bea903bbef704fa4f50a76b75e12059be102a5bedde214d8f64a73e4"
     },
     "packages/go-primitives/ephem/ephem.go": {
       "sha256": "0481597b07675e8e28b7a356f2da5bd47ae47e15abc1df44fd4eccbf6523facf"
@@ -153,7 +162,7 @@
       "sha256": "7ba2eecb934d3adcfb40daff3c1ac4dbe380d34b6497561affbaa6e89531490a"
     },
     "packages/go-primitives/go.mod": {
-      "sha256": "d7c2f80f1370d7f2a6a508b232c691b76fdd16d21599f92fb26b23f68d50e9ab"
+      "sha256": "8d72f327b6317d1fbaa905bbbaecc29eb9c75149c88cbfc04604a9fe97327385"
     },
     "packages/go-primitives/vault/crossruntime_test.go": {
       "sha256": "61922b44576cfbcdf55edde73bad62549b2cd443475df98a7c8c7f3dc042f5bb"
@@ -165,16 +174,19 @@
       "sha256": "950244f1ab3f77191ab5771db396f9e17b933992218f5b64255c9b8a6e1b4888"
     },
     "packages/platform-core/Cargo.lock": {
-      "sha256": "1925990cb00f85933a945535617bc3280c574482831d200fa11ad680dd04b667"
+      "sha256": "6ee25dad2db50384a48c44a242da529baec6546ccf1387dd8a1428735859d526"
     },
     "packages/platform-core/Cargo.toml": {
-      "sha256": "6b9dba4e6e13f822492afdfeaeb548b8e6ed534269e0d5f41ef404cacbefb315"
+      "sha256": "a160b329cfbc6eb2ff2ba6373e1ab7018ab4f76cb1fea60e970b0fa0e7d4fa9d"
     },
     "packages/platform-core/README.md": {
-      "sha256": "c886fda06ac2e85df548f7bd5d33cc6af6918f68bedd7556732bcd37ab6413ff"
+      "sha256": "28c5a3586f57cc0e9b171e7469af5ccb11f571e82eac0138372f00aa80b22b75"
+    },
+    "packages/platform-core/clippy.toml": {
+      "sha256": "14ec42fbf076be015a8bf9d2e5cbcda1d735dc2d658e1ed9623798f0686c0665"
     },
     "packages/platform-core/src/flight.rs": {
-      "sha256": "d4c6e0bd82ee3b6be6d42a734495e3e958d0a5d25f6c0d523bbe31595857a173"
+      "sha256": "8e9c8172d1c665db6ebeacbf4d3169631e90723d9814c03eea3fa04822b9d603"
     },
     "packages/platform-core/src/http.rs": {
       "sha256": "276af2b1c8090c44ac0fbd38ce3a7d63305b2984477d637b349078b6f9a24e84"
@@ -186,16 +198,16 @@
       "sha256": "175ca0363155924e6aec52482152a2805c0b95ac177daf6dd61d741cd174a3f1"
     },
     "packages/platform-core/src/signing.rs": {
-      "sha256": "fdd697e5f59d890d374ba5410ff7bdf541102e697c9697657ef7df5bc976ac5e"
+      "sha256": "8fa9f2ac2b6fa0e6b53d263f5f7c178a83ed868bd0044e3647e1608f43e44a1a"
     },
     "packages/platform-core/src/state.rs": {
-      "sha256": "eb948310a67d93b0a4b4a2072ee1befb01a70650c10ef446843bc32274ebf689"
+      "sha256": "20cccda32870cc571a48d8a46716854c4acdd290231fcde1bfbcc1a399e3c77b"
     },
     "packages/platform-core/src/vault.rs": {
       "sha256": "84280a6e2b1060f87b00049689c4c53297271110e9bf8d14f10a7a4708945446"
     },
     "packages/platform-core/src/webhooks.rs": {
-      "sha256": "d1e3c6aeab75d63513b09847b4adbf5e5ee09793205aee465db251efaf9a8c3c"
+      "sha256": "991ad85b93796f5caa07572b6d9bc70d37c76a639b3d16376516850ce5923f84"
     },
     "packages/platform-core/tests/fixtures/hl-signing-vectors.json": {
       "sha256": "642b3b98337c74ce6c856fb3c107afaf338b7f32ff2aeccf120bc83683c26c8d"
@@ -204,19 +216,25 @@
       "sha256": "9b5e378420fc44296be3f05eb66428e091c8044c68f46cd4943f5d851f4bdbb7"
     },
     "packages/platform-core/tests/signing_parity.rs": {
-      "sha256": "faa58ae22dda5f67f6b8420eeb81073ab8293c316bcdbb7f5a02dd7319388ab8"
+      "sha256": "b7faf7f4afe427470bc31223d067827626d710b05f88697f2bf437a8d348b64a"
     },
     "packages/platform-core/tests/state.rs": {
-      "sha256": "55389465fd5b18131e22df5c6d6f3578dbe9612fcb62fce152ff3260729a3009"
+      "sha256": "58beb744b919bcaa85aafc6e4c0d1aec889bcc739312dee2420aaa8b9a6232d8"
     },
     "packages/social-store/README.md": {
-      "sha256": "4154f539566c3b43d9f66ef0ca380e71ec8cc881189ca0eef3b6f0df2619c5cb"
+      "sha256": "ddbc6b1bbb37ae28fa315f867a592dadc70894727e49d53b2722e19fcbd3e352"
     },
     "packages/social-store/go.mod": {
-      "sha256": "e6381ca6aece966a5be6d442f44c8ea69a7c8c669ce5e5f0fd46ac85e7afa800"
+      "sha256": "220c6c321ef085c6b6346e753919a00270630974718ab60558fa0c20d899a8df"
     },
     "packages/social-store/go.sum": {
-      "sha256": "91f1a749534aa3796620eb4234076b9ccd74932dd428e51b5a2372dbff254eeb"
+      "sha256": "0129224f87019c487fe6db8373a1e403cee01555a874e5a8375bcd415f9052e0"
+    },
+    "packages/social-store/indexes.go": {
+      "sha256": "ff991236820b188e004d8dc56467eee34d2672ac7365e66d6c2a9a23cbc261cb"
+    },
+    "packages/social-store/indexes_db_test.go": {
+      "sha256": "a78a23066327bbf3089368cd0fd7274415719c65b6e9216576269efe388ae536"
     },
     "packages/social-store/migrations/000002_social.down.sql": {
       "sha256": "8f0eaa797d17b5fa94698e40f17687dafd2a6f9e66f792d5af0839284885d59f"
@@ -254,41 +272,47 @@
     "packages/social-store/migrations/000007_seen.up.sql": {
       "sha256": "7f2c3651acc3c59d62f6b1dd81fd96967c4b6f0d0e39f27b0f20cc13377e6566"
     },
+    "packages/social-store/pool_test.go": {
+      "sha256": "3bbbdba9169e64e6c102d29acc9d29ee883e1ca69d6cefcffaec3403527cc796"
+    },
+    "packages/social-store/reads_db_test.go": {
+      "sha256": "c0eee0b715900ad2f34a4898c29f50ac0755ae51f8ff261708543aa5a2dddbd7"
+    },
     "packages/social-store/social.go": {
-      "sha256": "1a95356f29007b449a20cd8b6f608371fab0b2fc875a730cc3e950cb14ec16ff"
+      "sha256": "d60e4ab2281f2dfde0d613be530fe2b9a479a30afe42a1e21f399ebf939b301e"
     },
     "packages/social-store/social_db_test.go": {
-      "sha256": "57b9523a8858f4df16f495ee6922d66a8795e81e1c599b96f455ff38ff1f3bbe"
+      "sha256": "081d3855273c026b27df420f3ec86c247ebb8c62338026e173391a3437818a37"
     },
     "packages/social-store/social_test.go": {
       "sha256": "a11c192881a091c3ecfd8cf635e2ba33fba4eee8de5c25d02ac44cbde600fa41"
     },
     "packages/social-store/social_unit_test.go": {
-      "sha256": "5ef511f092df322068276e74b8a2262b28060bae58a1c5bb4d02f0e17a0fc28b"
+      "sha256": "97d6fd83610d4a0ef869064bafcb32cc2c17052a0719f8414857cae2d713e0fc"
     },
     "packages/social-store/store.go": {
-      "sha256": "6bc7ff2f7b9d53cff60ab6d00636776d0a3dc28ad22284f95fb0b7ce4268f04d"
+      "sha256": "853c901c207268b17d4a6e093e1a1784aaaa9c98038bdb43670814ce6d016f36"
     },
     "packages/social-store/testdb_test.go": {
-      "sha256": "2e9261b60cf60677b352fd58699756d0888a31cbd04679c2f83d55db648b9f6d"
+      "sha256": "56aab218569d16e70f6d0f1c539fe0073fd198fd4d4779d47f463a199653ba70"
     },
     "scripts/check-public-boundary.py": {
       "sha256": "4805383281d87d162b4fdd247c348660745501ccad59a888f0f66b55f6190dd1"
     },
     "scripts/smoke-ephemeris.py": {
-      "sha256": "fbd59d8afe24f178bb15e2a5e6f9002ad42852f6ad178a13658b35f32e245b3c"
+      "sha256": "d268d219f470528c4e15758a9b799fb4c31cdef8c690a972541710e5caa745db"
     },
     "scripts/test_public_boundary.py": {
       "sha256": "3251c51c4507f50e927946084057b67c68a535caef863e974cf7e716af8c6f65"
     },
     "services/ephemeris/Cargo.lock": {
-      "sha256": "b8e98e24a5bce79af9e71cfa331821177b0c231df8a1790d53030df7f422d9e0"
+      "sha256": "60190da8e2ff538e7f0a689a3fb4fed678ceb69c60aa4c6e779e4a23ace1923e"
     },
     "services/ephemeris/Cargo.toml": {
-      "sha256": "cd1e33aa1ece2f509741c719f67360d3ab3cf8e7c6bdb90b693c0b0bc110f02b"
+      "sha256": "dddacb0dbb8281cd01cec2d496ff4add6f85e7abbe03a263290a0e431b4fba0a"
     },
     "services/ephemeris/Dockerfile": {
-      "sha256": "af17451ae4323697d2998b27d925c2afc541477fcaba9293155a655dee582cad"
+      "sha256": "b3ae4f806eadab4afe4118b268edf2750acde38ab4f13bd310ed97a13ff09a01"
     },
     "services/ephemeris/LICENSE": {
       "sha256": "0d96a4ff68ad6d4b6f1f30f713b18d5184912ba8dd389f86aa7710db079abcb0"
@@ -303,7 +327,10 @@
       "sha256": "b6345743292c516d07799dfad46f1a641e5270da2160cc4d6bd54594d6faa991"
     },
     "services/ephemeris/build.rs": {
-      "sha256": "f7df3d638b4e6abc3b69b0d4408b3129268aa5d7bc0719ba3dfffa6bd4227f8d"
+      "sha256": "740f5f00263022bc00b039b4837cbc8dcfa417f24d0970649e4c4b928ff80de4"
+    },
+    "services/ephemeris/clippy.toml": {
+      "sha256": "14ec42fbf076be015a8bf9d2e5cbcda1d735dc2d658e1ed9623798f0686c0665"
     },
     "services/ephemeris/data/ephemeris/LICENSE": {
       "sha256": "15808ad767befd8452067f96e191f7e32fbc22a19d1aa2b12967eefa743ee147"
@@ -330,7 +357,7 @@
       "sha256": "0b7e416e3c1be9e6a0dd1d711dae7f7685793a0e7df13f76363a493dc27b6ea1"
     },
     "services/ephemeris/src/main.rs": {
-      "sha256": "31644d8d530cbb766419e22a71e2720a2bf7064a4d299639c80d4585d1b429af"
+      "sha256": "e61142d7f338614a170dd66946dbf059b7245b6b5ea889981956b08075d040a8"
     },
     "services/ephemeris/src/protocol.rs": {
       "sha256": "ea614b5406f1864332ea792de0e077d91e1ffdf6d1ec566c16be94e7955f8811"

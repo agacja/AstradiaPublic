@@ -35,19 +35,29 @@ Suggested review order:
    visibility and persisted consent; note the required calling-layer authorization.
    Requests are serialized per pair and per sender with transaction-scoped
    advisory locks, so a double click or two crossed requests have one outcome;
-   `social_db_test.go` races them against a real database.
+   `social_db_test.go` races them against a real database. A friend's
+   dashboard, a comparison pair and the unread counts are each one statement;
+   for the dashboard and the pair the friendship is part of the statement's
+   condition rather than a check made after it. The database's collation, not
+   Go's byte order, decides which member of a pair comes first (`consentPair`,
+   tested in an ICU-collated database by `reads_db_test.go`). `indexes.go` builds its one
+   index outside the migrations, one instance at a time.
 6. `services/ephemeris/src/main.rs`: validated requests, independent credentials,
    bounded expensive work (a burst waits for a calculation slot instead of being
    refused), a graceful stop on SIGTERM and a component-scoped source offer.
 7. `packages/platform-core/src/state.rs` and `tests/state.rs`: atomic leases and
    nonces, the guard that releases on drop, and Redis calls that fail instead of
-   waiting forever. `packages/platform-core/src/flight.rs`: request coalescing,
+   waiting forever; batched reads, an atomic counter and queues keyed by id,
+   checked against a Redis stand-in that answers the real wire protocol.
+   `packages/platform-core/src/flight.rs`: request coalescing,
    where callers asking for the same thing at the same moment share one piece
-   of work, with cancellation handled so an abandoned key never stays behind.
+   of work, with cancellation handled so an abandoned key never stays behind,
+   and a cache that, when full, drops the value read least recently.
 8. `packages/platform-core/src/signing.rs` and `tests/signing_parity.rs`:
    byte-exact protocol hashing, and local verification of a remote signature.
    Its tests run the remote signer against a stand-in provider that checks the
-   request's authorization signature the way the real one does.
+   request's authorization signature the way the real one does, and compare
+   the k256/p256 0.14 signers with the bytes the earlier ones produced.
 9. `packages/platform-core/src/vault.rs` and `packages/go-primitives/vault`: one
    envelope format in two languages; the Go package also opens the earlier
    text layout, with both IV lengths it was written with.

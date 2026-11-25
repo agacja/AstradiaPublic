@@ -22,5 +22,5 @@ go vet ./...
 go test -race ./...
 ```
 
-Go 1.25+ is required. No database or network access is needed. All keys and
+Go 1.26.11 or newer is required. No database or network access is needed. All keys and
 plaintexts in the tests are synthetic.

@@ -4,7 +4,7 @@ mod protocol;
 use axum::{
     Json, Router,
     extract::{DefaultBodyLimit, Request, State},
-    http::StatusCode,
+    http::{HeaderValue, StatusCode},
     middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::{get, post},
@@ -53,9 +53,10 @@ async fn auth(State(app): State<App>, req: Request, next: Next) -> Response {
         quota.1 += 1;
     }
     let mut response = next.run(req).await;
-    response
-        .headers_mut()
-        .insert("cache-control", "private, no-store".parse().unwrap());
+    response.headers_mut().insert(
+        "cache-control",
+        const { HeaderValue::from_static("private, no-store") },
+    );
     response
 }
 async fn calculate(

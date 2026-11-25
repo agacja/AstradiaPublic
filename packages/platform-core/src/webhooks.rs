@@ -19,6 +19,10 @@ pub fn verify_stripe(body: &[u8], header: &str, secret: &[u8], now: i64) -> bool
     if now.abs_diff(time) > 300 {
         return false;
     }
+    #[expect(
+        clippy::expect_used,
+        reason = "HMAC takes a key of any length, so new_from_slice cannot fail"
+    )]
     let mut mac = Hmac::<Sha256>::new_from_slice(secret).expect("HMAC accepts arbitrary length");
     mac.update(ts[0].1.as_bytes());
     mac.update(b".");
@@ -38,6 +42,10 @@ pub fn verify_now(body: &Value, signature: &str, secret: &[u8]) -> bool {
     let Ok(signature) = hex::decode(signature) else {
         return false;
     };
+    #[expect(
+        clippy::expect_used,
+        reason = "HMAC takes a key of any length, so new_from_slice cannot fail"
+    )]
     let mut mac = Hmac::<Sha512>::new_from_slice(secret).expect("HMAC accepts arbitrary length");
     mac.update(&canonical);
     mac.verify_slice(&signature).is_ok()

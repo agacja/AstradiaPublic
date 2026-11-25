@@ -1,0 +1,56 @@
+# Supply-chain policy for the two Rust crates, packages/platform-core and
+# services/ephemeris. The workflow .github/workflows/supply-chain.yml runs, from
+# the repository root, for each crate:
+#   cargo deny --manifest-path <crate>/Cargo.toml --config deny.toml --locked check
+# cargo-audit reads the same advisory database over each Cargo.lock; its list is
+# .cargo/audit.toml.
+
+[graph]
+# The platforms the crates are built for: Linux in CI, macOS for local work.
+# Crates that only other platforms build are left out of every check.
+targets = ["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu", "aarch64-apple-darwin"]
+
+[advisories]
+# Unmaintained and unsound crates fail like vulnerabilities, wherever they are.
+unmaintained = "all"
+unsound = "all"
+yanked = "deny"
+# Every entry is an advisory that no semver-compatible release fixes.
+ignore = [
+    { id = "RUSTSEC-2026-0387", reason = "crypto-bigint 0.5.5 under k256 0.13 (ethers-core 2) and under p256 0.13 (a test-only reference in platform-core). Public-data recovery only: action and provider-request signing use k256/p256 0.14 with crypto-bigint 0.7 (src/signing.rs), and ethers-core is left recovering signer addresses from signatures. Removing 0.5 means leaving ethers-core 2 (major)." },
+    { id = "RUSTSEC-2026-0543", reason = "chrono is unmaintained and has no successor release. Direct dependency of both crates; moving to jiff or time is a separate migration." },
+]
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []
+
+[licenses]
+# The licenses the two dependency graphs use, and no others.
+allow = [
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "CC0-1.0",
+    "CDLA-Permissive-2.0",
+    "ISC",
+    "MIT",
+    "Unicode-3.0",
+    "Zlib",
+]
+exceptions = [
+    # The Swiss Ephemeris binding, used only by the separate AGPL astronomy
+    # service (services/ephemeris), never by platform-core.
+    { allow = ["AGPL-3.0-only"], crate = "sweph" },
+    { allow = ["AGPL-3.0-only"], crate = "sweph-sys" },
+]
+
+[licenses.private]
+# Both crates are publish = false; the astronomy service declares AGPL-3.0-only itself.
+ignore = true

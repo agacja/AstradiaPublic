@@ -1,0 +1,64 @@
+name: Dependency advisories, licenses and sources
+# cargo-audit and cargo-deny on both Rust lock files, govulncheck on both Go
+# modules. The policies are deny.toml and .cargo/audit.toml at the repository
+# root. Runs when a lock file, a module file or a policy changes, and on demand.
+on:
+  push:
+    paths: ['packages/platform-core/Cargo.lock', 'packages/platform-core/Cargo.toml', 'services/ephemeris/Cargo.lock', 'services/ephemeris/Cargo.toml', 'packages/social-store/go.mod', 'packages/social-store/go.sum', 'packages/go-primitives/go.mod', 'deny.toml', '.cargo/audit.toml', '.github/workflows/supply-chain.yml']
+  pull_request:
+    paths: ['packages/platform-core/Cargo.lock', 'packages/platform-core/Cargo.toml', 'services/ephemeris/Cargo.lock', 'services/ephemeris/Cargo.toml', 'packages/social-store/go.mod', 'packages/social-store/go.sum', 'packages/go-primitives/go.mod', 'deny.toml', '.cargo/audit.toml', '.github/workflows/supply-chain.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  supply-chain:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    # Each tool is a release at least two weeks old that builds with the
+    # toolchains below.
+    env:
+      CARGO_AUDIT_VERSION: 0.23.0
+      CARGO_DENY_VERSION: 0.20.2
+      GOVULNCHECK_VERSION: v1.9.0
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - run: rustup toolchain install 1.94.1 --profile minimal && rustup default 1.94.1
+      # The Go the modules declare, so the standard library is checked at the
+      # version CI tests with.
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        id: go
+        with:
+          go-version-file: packages/social-store/go.mod
+          cache-dependency-path: packages/social-store/go.sum
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        id: tools
+        with:
+          path: ~/supply-chain-tools
+          key: supply-chain-tools-${{ runner.os }}-rust-1.94.1-go-${{ steps.go.outputs.go-version }}-audit-${{ env.CARGO_AUDIT_VERSION }}-deny-${{ env.CARGO_DENY_VERSION }}-govulncheck-${{ env.GOVULNCHECK_VERSION }}
+      - name: Build the pinned tools
+        if: steps.tools.outputs.cache-hit != 'true'
+        run: |
+          cargo install --locked --root ~/supply-chain-tools "cargo-audit@$CARGO_AUDIT_VERSION"
+          cargo install --locked --root ~/supply-chain-tools "cargo-deny@$CARGO_DENY_VERSION"
+          GOBIN=~/supply-chain-tools/bin go install "golang.org/x/vuln/cmd/govulncheck@$GOVULNCHECK_VERSION"
+      - run: echo ~/supply-chain-tools/bin >> "$GITHUB_PATH"
+      - name: cargo-audit (whole lock files)
+        run: |
+          cargo audit --file packages/platform-core/Cargo.lock
+          cargo audit --file services/ephemeris/Cargo.lock
+      # One deny.toml serves both crates, so each run silences the notes about
+      # allowed licenses, license exceptions and ignored advisories that do not
+      # occur in that crate's graph.
+      - name: cargo-deny (advisories, bans, licenses, sources)
+        run: |
+          cargo deny --manifest-path packages/platform-core/Cargo.toml --config deny.toml --locked check -A license-not-encountered -A license-exception-not-encountered
+          cargo deny --manifest-path services/ephemeris/Cargo.toml --config deny.toml --locked check -A advisory-not-detected -A license-not-encountered -A license-exception-not-encountered
+      # Fails on any vulnerability whose code a module calls.
+      - name: govulncheck (social-store)
+        working-directory: packages/social-store
+        run: govulncheck ./...
+      - name: govulncheck (go-primitives)
+        working-directory: packages/go-primitives
+        run: govulncheck ./...

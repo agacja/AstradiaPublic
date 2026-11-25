@@ -1,0 +1,4 @@
+# unwrap and expect are denied in this crate (Cargo.toml [lints.clippy]);
+# tests may use them.
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true

@@ -18,6 +18,10 @@ interface HyperliquidChartProps {
   variant?: PriceChartVariant;
   /** Render without the surrounding .ad-card chrome (the parent supplies the card). */
   bare?: boolean;
+  /** Decimals of the head price. Left out, the precision follows the size of the price. */
+  decimals?: number;
+  /** What the foot names as the origin of the stream. Defaults to "streaming updates". */
+  source?: string;
 }
 
 // Interval mapping for Hyperliquid API
@@ -60,7 +64,7 @@ export const CHART_COLORS = {
   areaBottom: 'rgba(124, 131, 242, 0)',
 };
 
-function HyperliquidChartComponent({ symbol, height = 620, interval = '15m', label, variant = 'candles', bare = false }: HyperliquidChartProps) {
+function HyperliquidChartComponent({ symbol, height = 620, interval = '15m', label, variant = 'candles', bare = false, decimals, source }: HyperliquidChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | ISeriesApi<'Area'> | null>(null);
@@ -373,6 +377,7 @@ function HyperliquidChartComponent({ symbol, height = 620, interval = '15m', lab
   };
 
   const formatPrice = (price: number) => {
+    if (decimals !== undefined) return price.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
     if (price >= 1000) return price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     if (price >= 1) return price.toFixed(4);
     return price.toFixed(6);
@@ -417,7 +422,7 @@ function HyperliquidChartComponent({ symbol, height = 620, interval = '15m', lab
         </div>
         <span className="rtc-note">
           <span className={`rtc-dot${isConnected && !isLoading ? '' : ' off'}`} />
-          {status} · streaming updates
+          {status} · {source ?? 'streaming updates'}
         </span>
       </div>
     </div>

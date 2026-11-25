@@ -5,13 +5,12 @@ use crate::http::shared_http_client;
 use async_trait::async_trait;
 use ethers_core::{
     types::{
-        Address, H256, Signature,
+        Address, H256, Signature, U256,
         transaction::eip712::{Eip712, TypedData},
     },
     utils::keccak256,
 };
-use ethers_signers::{LocalWallet, Signer as EthersSigner};
-use secrecy::{ExposeSecret, SecretString};
+use secrecy::{ExposeSecret, ExposeSecretMut, SecretBox, SecretString};
 use serde::Serialize;
 use serde_json::{Value, json};
 use std::str::FromStr;
@@ -35,29 +34,54 @@ pub trait Signer: Send + Sync {
     fn address(&self) -> Address;
     async fn sign_digest(&self, digest: [u8; 32]) -> Result<Signature>;
 }
+/// A trading key held here. It signs with k256 0.14 (crypto-bigint 0.7)
+/// instead of ethers' wallet (k256 0.13, crypto-bigint 0.5, RUSTSEC-2026-0387).
+/// Keys parse as ethers' `LocalWallet::from_str` parsed them, and signatures
+/// are the same bytes for every digest below the group order: RFC 6979, low S,
+/// `v` = 27 + recovery id. For a digest at or above the order, which a Keccak
+/// hash practically never is, RFC 6979 now reduces the digest before deriving
+/// the nonce, so the signature differs from the old one and is just as valid.
 pub struct LocalSigner {
-    wallet: LocalWallet,
+    key: k256::ecdsa::SigningKey,
+    address: Address,
 }
 impl LocalSigner {
     pub fn new(key: &SecretString) -> Result<Self> {
-        Ok(Self {
-            wallet: key
-                .expose_secret()
-                .trim()
-                .parse()
-                .map_err(|_| SigningError::Credential)?,
-        })
+        let key = signing_key(key.expose_secret().trim()).ok_or(SigningError::Credential)?;
+        let point = key.verifying_key().to_sec1_point(false);
+        let address = Address::from_slice(&keccak256(&point.as_bytes()[1..])[12..]);
+        Ok(Self { key, address })
     }
+}
+/// The forms ethers' `LocalWallet::from_str` accepted: an optional `0X`, an
+/// even length, then an optional `0x` or `0X`, then 64 hex digits of a scalar
+/// that is neither zero nor at or above the group order.
+fn signing_key(src: &str) -> Option<k256::ecdsa::SigningKey> {
+    let src = src.strip_prefix("0X").unwrap_or(src);
+    if !src.len().is_multiple_of(2) {
+        return None;
+    }
+    let src = src
+        .strip_prefix("0x")
+        .or_else(|| src.strip_prefix("0X"))
+        .unwrap_or(src);
+    let mut bytes = SecretBox::new(Box::new([0u8; 32]));
+    hex::decode_to_slice(src, bytes.expose_secret_mut()).ok()?;
+    k256::ecdsa::SigningKey::from_slice(bytes.expose_secret()).ok()
 }
 #[async_trait]
 impl Signer for LocalSigner {
     fn address(&self) -> Address {
-        self.wallet.address()
+        self.address
     }
     async fn sign_digest(&self, digest: [u8; 32]) -> Result<Signature> {
-        self.wallet
-            .sign_hash(H256(digest))
-            .map_err(|_| SigningError::Unavailable)
+        let (signature, recovery) = self.key.sign_prehash_recoverable(&digest);
+        let bytes = signature.to_bytes();
+        Ok(Signature {
+            r: U256::from_big_endian(&bytes[..32]),
+            s: U256::from_big_endian(&bytes[32..]),
+            v: u64::from(recovery.to_byte()) + 27,
+        })
     }
 }
 pub fn action_hash(
@@ -81,6 +105,10 @@ pub fn action_hash(
     Ok(keccak256(bytes))
 }
 pub fn l1_digest(hash: [u8; 32], testnet: bool) -> [u8; 32] {
+    #[expect(
+        clippy::expect_used,
+        reason = "decodes a constant 64-digit hex literal; the signing parity tests cover it"
+    )]
     let domain = hex::decode("d79297fcdf2ffcd4ae223d01edaa2ba214ff8f401d7c9300d995d17c82aa4040")
         .expect("constant hex");
     let mut message = keccak256("Agent(string source,bytes32 connectionId)").to_vec();
@@ -132,6 +160,18 @@ pub fn verify_signature(sig: &Signature, digest: [u8; 32], expected: Address) ->
         return Err(SigningError::WrongSigner);
     }
     Ok(())
+}
+
+/// The app's authorization signature over a canonical request, as the provider
+/// checks it: ECDSA P-256 over SHA-256 with an RFC 6979 nonce, DER, base64. It
+/// uses p256 0.14 (crypto-bigint 0.7); the bytes equal p256 0.13's except when
+/// the SHA-256 of the request is at or above the group order (2^-32 of
+/// requests), where the signature differs and is just as valid.
+fn authorization_signature(key: &p256::ecdsa::SigningKey, canonical: &[u8]) -> String {
+    use base64::Engine;
+    use p256::ecdsa::signature::Signer as _;
+    let signature: p256::ecdsa::Signature = key.sign(canonical);
+    base64::engine::general_purpose::STANDARD.encode(signature.to_der().as_bytes())
 }
 
 /// The provider's wallet API.
@@ -220,8 +260,6 @@ impl Signer for PrivySigner {
     /// that a change on its side reads as what it is and not as a signing
     /// failure without a cause.
     async fn sign_digest(&self, digest: [u8; 32]) -> Result<Signature> {
-        use base64::Engine;
-        use p256::ecdsa::signature::Signer as P256Signer;
         let url = format!("{}/v1/wallets/{}/rpc", self.api, self.wallet_id);
         let expiry = (chrono::Utc::now().timestamp_millis() + 60_000).to_string();
         let body = json!({"method":"secp256k1_sign","params":{"hash":format!("0x{}",hex::encode(digest))}});
@@ -230,17 +268,14 @@ impl Signer for PrivySigner {
             &json!({"version":1,"method":"POST","url":url,"body":body,"headers":headers}),
         )
         .map_err(|_| SigningError::Payload)?;
-        let signature: p256::ecdsa::Signature = self.auth_key.sign(&canonical);
+        let authorization = authorization_signature(&self.auth_key, &canonical);
         let response = self
             .http
             .post(url)
             .basic_auth(&self.app_id, Some(self.app_secret.expose_secret()))
             .header("privy-app-id", &self.app_id)
             .header("privy-request-expiry", expiry)
-            .header(
-                "privy-authorization-signature",
-                base64::engine::general_purpose::STANDARD.encode(signature.to_der().as_bytes()),
-            )
+            .header("privy-authorization-signature", authorization)
             .json(&body)
             .send()
             .await
@@ -300,6 +335,7 @@ mod tests {
         routing::post,
     };
     use base64::Engine;
+    use ethers_signers::{LocalWallet, Signer as EthersSigner};
     use p256::ecdsa::signature::Verifier;
     use std::sync::{Arc, Mutex};
 
@@ -486,6 +522,259 @@ mod tests {
             (Value::Null, "unreadable"),
         ] {
             assert_eq!(refusal_code(&body), code, "{body}");
+        }
+    }
+
+    // The signers before the 0.14 curve crates (ethers' wallet on k256 0.13,
+    // and p256 0.13) are the references below: the same bytes for every digest
+    // below the group order, a valid signature at or above it.
+
+    /// The secp256k1 group order.
+    const K256_ORDER: &str = "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141";
+    /// The P-256 group order.
+    const P256_ORDER: &str = "ffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551";
+
+    fn bytes32(hex_digits: &str) -> [u8; 32] {
+        let mut out = [0; 32];
+        hex::decode_to_slice(hex_digits, &mut out).unwrap();
+        out
+    }
+    /// Fixed trading keys, with the smallest and the largest valid scalar.
+    fn trading_keys() -> Vec<String> {
+        let mut keys: Vec<String> = (0..16)
+            .map(|i| hex::encode(keccak256(format!("trading key {i}"))))
+            .collect();
+        keys.push(format!("{}01", "00".repeat(31)));
+        keys.push("fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364140".into());
+        keys
+    }
+    /// Digests of the kinds the exchange gets signed: L1 actions on both
+    /// networks, user actions as EIP-712 messages, and plain Keccak outputs.
+    fn exchange_digests() -> Vec<[u8; 32]> {
+        let cancel = json!({"type":"cancel","cancels":[{"a":0,"o":123456789}]});
+        let another = json!({"type":"cancel","cancels":[{"a":1,"o":987654321},{"a":2,"o":42}]});
+        let mut digests = Vec::new();
+        for (i, action) in [cancel, another].iter().enumerate() {
+            for testnet in [false, true] {
+                let hash = action_hash(action, None, 1_764_000_000_000 + i as u64, None).unwrap();
+                digests.push(l1_digest(hash, testnet));
+            }
+        }
+        for action in [
+            json!({"type":"usdClassTransfer","signatureChainId":"0x66eee","hyperliquidChain":"Mainnet","amount":"12.5","toPerp":true,"nonce":1_764_000_000_001_u64}),
+            json!({"type":"usdClassTransfer","signatureChainId":"0x66eee","hyperliquidChain":"Mainnet","amount":"3","toPerp":false,"nonce":1_764_000_000_002_u64}),
+            json!({"type":"usdClassTransfer","signatureChainId":"0x66eee","hyperliquidChain":"Testnet","amount":"0.5","toPerp":true,"nonce":1_764_000_000_003_u64}),
+        ] {
+            digests.push(user_digest(&action).unwrap());
+        }
+        digests.extend((0..12).map(|i| keccak256(format!("digest {i}"))));
+        digests.push([0; 32]);
+        digests
+    }
+
+    #[test]
+    fn trading_keys_parse_as_ethers_parsed_them() {
+        let key = hex::encode(keccak256("a trading key"));
+        let cases = [
+            key.clone(),
+            format!("0x{key}"),
+            format!("0X{key}"),
+            key.to_uppercase(),
+            format!("0x{}", key.to_uppercase()),
+            format!("0X0x{key}"),
+            format!("0x0X{key}"),
+            format!("0X0X{key}"),
+            format!("  {key}\n"),
+            key[1..].to_owned(),
+            key[2..].to_owned(),
+            format!("{key}00"),
+            format!("{}g", &key[..63]),
+            format!("x0{key}"),
+            "00".repeat(32),
+            K256_ORDER.to_owned(),
+            format!("0x{K256_ORDER}"),
+            "zz".repeat(32),
+            String::new(),
+            "0x".into(),
+        ];
+        for case in cases {
+            let before = case.trim().parse::<LocalWallet>().ok().map(|w| w.address());
+            let after = LocalSigner::new(&case.clone().into())
+                .ok()
+                .map(|s| s.address());
+            assert_eq!(after, before, "{case:?}");
+        }
+        for key in trading_keys() {
+            let before = key.parse::<LocalWallet>().unwrap().address();
+            assert_eq!(LocalSigner::new(&key.into()).unwrap().address(), before);
+        }
+    }
+
+    #[tokio::test]
+    async fn action_signatures_are_the_bytes_ethers_produced() {
+        let order = bytes32(K256_ORDER);
+        let digests = exchange_digests();
+        let mut compared = 0;
+        for key in trading_keys() {
+            let before = key.parse::<LocalWallet>().unwrap();
+            let after = LocalSigner::new(&key.clone().into()).unwrap();
+            for digest in &digests {
+                assert!(*digest < order);
+                let expected = before.sign_hash(H256(*digest)).unwrap();
+                let signature = after.sign_digest(*digest).await.unwrap();
+                assert_eq!(
+                    (signature.r, signature.s, signature.v),
+                    (expected.r, expected.s, expected.v),
+                    "key {key}, digest {}",
+                    hex::encode(digest)
+                );
+                compared += 1;
+            }
+        }
+        assert_eq!(compared, 18 * 20);
+    }
+
+    #[tokio::test]
+    async fn a_digest_at_or_above_the_order_still_gets_a_valid_signature() {
+        let order = bytes32(K256_ORDER);
+        let mut above = order;
+        above[31] += 1;
+        let half = U256::from_big_endian(&order) / 2;
+        for key in trading_keys() {
+            let signer = LocalSigner::new(&key.into()).unwrap();
+            for digest in [order, above, [0xff; 32]] {
+                let signature = signer.sign_digest(digest).await.unwrap();
+                // What the exchange checks: the signature recovers to the
+                // signing address. And it is low-S, as before.
+                verify_signature(&signature, digest, signer.address()).unwrap();
+                assert!(signature.s <= half);
+                assert!(signature.v == 27 || signature.v == 28);
+            }
+        }
+    }
+
+    /// PKCS#8 as the provider's dashboard and OpenSSL write it (p256 0.13's
+    /// encoding is byte for byte the same), and the form without the public key.
+    fn authorization_keys() -> Vec<(String, Vec<u8>)> {
+        use p256_013::pkcs8::EncodePrivateKey as _;
+        let mut keys = Vec::new();
+        for i in 0..12 {
+            let scalar = keccak256(format!("authorization key {i}"));
+            let Ok(key) = p256_013::ecdsa::SigningKey::from_slice(&scalar) else {
+                continue;
+            };
+            keys.push((
+                format!("key {i} with its public key"),
+                key.to_pkcs8_der().unwrap().as_bytes().to_vec(),
+            ));
+            let mut bare = hex::decode(
+                "3041020100301306072a8648ce3d020106082a8648ce3d030107042730250201010420",
+            )
+            .unwrap();
+            bare.extend_from_slice(&scalar);
+            keys.push((format!("key {i} without its public key"), bare));
+        }
+        keys
+    }
+    fn app_signer(der: &[u8]) -> Result<PrivySigner> {
+        PrivySigner::new(
+            WALLET.into(),
+            Address::zero(),
+            APP.into(),
+            "s".repeat(40).into(),
+            base64::engine::general_purpose::STANDARD.encode(der).into(),
+        )
+    }
+
+    #[test]
+    fn authorization_keys_parse_as_p256_0_13_parsed_them() {
+        use p256_013::pkcs8::DecodePrivateKey as _;
+        for (name, der) in authorization_keys() {
+            let before = p256_013::ecdsa::SigningKey::from_pkcs8_der(&der).unwrap();
+            let after = app_signer(&der).unwrap();
+            assert_eq!(
+                after.auth_key.to_bytes().to_vec(),
+                before.to_bytes().to_vec(),
+                "{name}"
+            );
+        }
+        // Damaged keys are refused by both.
+        let (_, der) = authorization_keys().swap_remove(0);
+        let mut wrong_public = der.clone();
+        *wrong_public.last_mut().unwrap() ^= 1;
+        let mut trailing = der.clone();
+        trailing.push(0);
+        for damaged in [wrong_public, der[..der.len() - 1].to_vec(), trailing] {
+            assert!(p256_013::ecdsa::SigningKey::from_pkcs8_der(&damaged).is_err());
+            assert!(matches!(
+                app_signer(&damaged),
+                Err(SigningError::Credential)
+            ));
+        }
+    }
+
+    #[test]
+    fn authorization_signatures_are_the_bytes_p256_0_13_produced() {
+        use p256_013::ecdsa::signature::Signer as _;
+        use p256_013::pkcs8::DecodePrivateKey as _;
+        // Requests as sign_digest builds them, and edge lengths.
+        let mut requests: Vec<Vec<u8>> = (0..10_u64)
+            .map(|i| {
+                let url = format!("{PRIVY_API}/v1/wallets/{WALLET}/rpc");
+                let body = json!({"method":"secp256k1_sign","params":{"hash":format!("0x{}",hex::encode(keccak256(format!("order {i}"))))}});
+                let headers = json!({"privy-app-id":APP,"privy-request-expiry":(1_764_000_000_000 + i).to_string()});
+                serde_json_canonicalizer::to_vec(
+                    &json!({"version":1,"method":"POST","url":url,"body":body,"headers":headers}),
+                )
+                .unwrap()
+            })
+            .collect();
+        requests.push(Vec::new());
+        requests.push(vec![0x5a; 4096]);
+        let mut compared = 0;
+        for (name, der) in authorization_keys() {
+            let before = p256_013::ecdsa::SigningKey::from_pkcs8_der(&der).unwrap();
+            let after = app_signer(&der).unwrap();
+            for request in &requests {
+                let signature: p256_013::ecdsa::Signature = before.sign(request);
+                let expected =
+                    base64::engine::general_purpose::STANDARD.encode(signature.to_der().as_bytes());
+                assert_eq!(
+                    authorization_signature(&after.auth_key, request),
+                    expected,
+                    "{name}"
+                );
+                compared += 1;
+            }
+        }
+        assert_eq!(compared, 24 * 12);
+    }
+
+    #[test]
+    fn an_authorization_digest_at_or_above_the_order_still_verifies() {
+        use p256::ecdsa::signature::hazmat::{PrehashSigner, PrehashVerifier};
+        use p256_013::ecdsa::signature::hazmat::PrehashVerifier as _;
+        let order = bytes32(P256_ORDER);
+        let mut above = order;
+        above[31] += 1;
+        for (name, der) in authorization_keys() {
+            let key = app_signer(&der).unwrap().auth_key;
+            for digest in [order, above, [0xff; 32]] {
+                let signature: p256::ecdsa::Signature = key.sign_prehash(&digest).unwrap();
+                key.verifying_key()
+                    .verify_prehash(&digest, &signature)
+                    .unwrap();
+                // An independent verifier, as the provider's would be.
+                let public = p256_013::ecdsa::VerifyingKey::from_sec1_bytes(
+                    &key.verifying_key().to_sec1_bytes(),
+                )
+                .unwrap();
+                let signature =
+                    p256_013::ecdsa::Signature::from_der(signature.to_der().as_bytes()).unwrap();
+                public
+                    .verify_prehash(&digest, &signature)
+                    .unwrap_or_else(|_| panic!("{name}"));
+            }
         }
     }
 }

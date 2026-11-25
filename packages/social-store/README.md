@@ -12,13 +12,16 @@ does not start an HTTP server, provision accounts, or run migrations.
 
 ## Tests
 
-Use Go 1.25+ and PostgreSQL 16. The database tests use synthetic identifiers
+Use Go 1.26.11 or newer and PostgreSQL 16. The database tests use synthetic identifiers
 and refuse a non-loopback database or the usual production port. One creates
-session-local temporary tables; the others (`social_db_test.go`) each get a
+session-local temporary tables; the others (`social_db_test.go`, `reads_db_test.go`, `pool_test.go`) each get a
 freshly named schema with a minimal `users` table and this package's
 migrations applied on top (`testdb_test.go`), dropped when the test ends. They
 include requests raced from many goroutines at once, which must leave exactly
-one friendship row and an answer for every caller.
+one friendship row and an answer for every caller. A few get a database of
+their own: the index tests, and one in an ICU-collated database, the way a
+managed server is usually set up, which is skipped where the server cannot
+create one.
 
 ```sh
 # Against your disposable PostgreSQL instance, never a production database:
@@ -37,6 +40,12 @@ repeat. They extend an existing `users` table that is defined elsewhere and is
 not published, so they are reference material rather than a standalone
 database; this package still does not run migrations. Numbering starts at
 `000002` because the first migration concerns a credential column.
+
+`indexes.go` builds one optional index of its own, for the default-handle
+lookup, outside the migrations: an index built `CONCURRENTLY` can wait on other
+transactions for a long time, so the calling service runs
+`BuildDefaultHandleIndex` in the background after it has started, one instance
+at a time, and the lookup works without the index until then.
 
 No database export is included. To integrate this package in another service,
 provide a `users` table, apply the migrations, and supply a correctly

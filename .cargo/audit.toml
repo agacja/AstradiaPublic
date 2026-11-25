@@ -1,0 +1,10 @@
+# cargo-audit settings, read when it runs from the repository root (the workflow
+# .github/workflows/supply-chain.yml checks both Cargo.lock files).
+# Unmaintained and unsound notices only warn here; cargo-deny (deny.toml) fails
+# on them.
+
+[advisories]
+ignore = [
+    # No compatible fix; the reason is in deny.toml.
+    "RUSTSEC-2026-0387", # crypto-bigint 0.5.5 (k256 0.13 in ethers-core), public-data recovery only
+]

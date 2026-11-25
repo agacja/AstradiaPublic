@@ -93,7 +93,7 @@ account at once.
 | Astronomy service | Generic planetary positions and house geometry | Independent service source and existing license/data notices in `services/ephemeris` |
 | Go social service | Profiles, friendships, consent-aware comparisons, track record, and related product features | Social database package and schema (`packages/social-store`), credential envelope and a pure-Go position calculator (`packages/go-primitives`); comparison scoring, track-record accounting and HTTP layers excluded |
 | PostgreSQL | Durable accounts, memberships, payments, preferences, and relationships | Social and audio-cache table definitions only; no database dump |
-| Redis | Shared state, coordination, leases and caches | The lease, nonce and key/value scripts in `packages/platform-core`, with bounded waits; no snapshot or deployment configuration |
+| Redis | Shared state, coordination, leases and caches | The lease, nonce, key/value, counter and queue operations in `packages/platform-core`, with bounded waits; no snapshot or deployment configuration |
 
 ## 3. Request path
 
@@ -409,6 +409,12 @@ flowchart LR
     classDef pub fill:#e6f4ea,stroke:#1e7e34,color:#0b3d17
     class B1,B2,B3,B4,FE,SO,GP,PC,AS pub
 ```
+
+A second workflow runs when a lock file, a module file or the dependency
+policy changes: cargo-audit and cargo-deny over both Rust lock files
+(advisories, licenses, sources, bans) and govulncheck over both Go modules
+(known vulnerabilities in the code they call). Its exceptions are listed with
+their reasons in `deny.toml` and `.cargo/audit.toml`.
 
 The publication procedure itself, and what is deliberately excluded, is in
 [PUBLIC-BOUNDARY.md](PUBLIC-BOUNDARY.md).

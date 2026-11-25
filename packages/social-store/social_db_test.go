@@ -1295,12 +1295,12 @@ func TestWallListsOnlyCommentsByCurrentFriends(t *testing.T) {
 	}
 	authors := func() string {
 		t.Helper()
-		list, err := s.Wall(ctx, "owner", 50)
+		page, err := s.Wall(ctx, "owner", 50)
 		if err != nil {
 			t.Fatal(err)
 		}
 		seen := map[string]bool{}
-		for _, c := range list {
+		for _, c := range page.Comments {
 			seen[c.AuthorID] = true
 			if c.AuthorNick == "FormerNow" && !seen["former"] {
 				t.Fatal("a nick without its author")

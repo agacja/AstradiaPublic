@@ -2,6 +2,8 @@ package socialstore
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"errors"
 	"testing"
 	"time"
@@ -126,5 +128,45 @@ func TestSynastryConsentSeenBy(t *testing.T) {
 		if got := c.SeenBy("bob"); got != tc.answerer {
 			t.Errorf("%s: the other member sees %q, want %q", tc.status, got, tc.answerer)
 		}
+	}
+}
+
+// The data URL a picture is sent as is exactly the one it always was, for
+// every size around the chunk boundaries, and costs one allocation.
+func TestAvatarDataURLIsUnchangedAndBuiltOnce(t *testing.T) {
+	mime := "image/webp"
+	old := func(b []byte) string {
+		return "data:" + mime + ";base64," + base64.StdEncoding.EncodeToString(b)
+	}
+	buf := make([]byte, MaxAvatarBytes+5)
+	if _, err := rand.Read(buf); err != nil {
+		t.Fatal(err)
+	}
+	for _, n := range []int{1, 2, 3, 4, 5, 767, 768, 769, 770, 1535, 1536, 1537, 4096, 15 * 1024, MaxAvatarBytes - 1, MaxAvatarBytes, MaxAvatarBytes + 5} {
+		if got, want := avatarDataURL(buf[:n], &mime), old(buf[:n]); got != want {
+			t.Fatalf("%d bytes: the data URL changed", n)
+		}
+	}
+	for _, none := range []struct {
+		b    []byte
+		mime *string
+	}{{nil, &mime}, {[]byte{}, &mime}, {buf[:3], nil}, {buf[:3], new(string)}} {
+		if got := avatarDataURL(none.b, none.mime); got != "" {
+			t.Fatalf("no picture gave %q", got)
+		}
+	}
+	picture := buf[:MaxAvatarBytes]
+	if allocs := testing.AllocsPerRun(20, func() { _ = avatarDataURL(picture, &mime) }); allocs != 1 {
+		t.Fatalf("%v allocations per picture, want 1", allocs)
+	}
+}
+
+func BenchmarkAvatarDataURL(b *testing.B) {
+	mime := "image/webp"
+	picture := make([]byte, MaxAvatarBytes)
+	_, _ = rand.Read(picture)
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		_ = avatarDataURL(picture, &mime)
 	}
 }

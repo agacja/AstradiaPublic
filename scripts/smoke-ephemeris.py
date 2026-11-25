@@ -62,7 +62,7 @@ try:
     assert request('/v1/ephemeris', {**sample, 'asset': 'DEMO'}, True)[0] == 422
     status, archive = request('/source')
     assert status == 200
-    expected = {'Cargo.toml', 'Cargo.lock', 'build.rs', 'src/main.rs', 'src/protocol.rs',
+    expected = {'Cargo.toml', 'Cargo.lock', 'clippy.toml', 'build.rs', 'src/main.rs', 'src/protocol.rs',
                 'LICENSE', 'SWISS-LICENSE', 'PROTOCOL-LICENSE', 'README.md', 'Dockerfile'}
     expected |= {'data/ephemeris/' + name for name in ['LICENSE', 'seas_18.se1', 'seasnam.txt',
         'sefstars.txt', 'seleapsec.txt', 'semo_18.se1', 'seorbel.txt', 'sepl_18.se1']}

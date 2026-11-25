@@ -53,7 +53,7 @@ flowchart LR
 
 | # | Crossing | What is checked | Published in |
 | --- | --- | --- | --- |
-| 1 | Browser to API | Signed, expiring session token; a single `Authorization` header; a per-member quota | Described only |
+| 1 | Browser to API | Signed, expiring session token; a single `Authorization` header; a per-member quota. A route that needs no session answers every caller from one shared, periodically refreshed calculation, or is limited per network and against a budget shared by all such callers. Every JSON body and query string the API parses for a member's request may carry only the fields its route declares | Described only |
 | 2 | Provider to API | HMAC over the exact request bytes or canonical JSON, with a timestamp window where the provider supplies one | `platform-core/src/webhooks.rs` |
 | 3 | Worker to API | A service identity distinct from any member; an invalid one is rejected outright and never falls back to a member identity | Described only |
 | 4 | API to astronomy | Independent shared secret, size limits, quota and bounded CPU work | `services/ephemeris/src/main.rs` |
@@ -103,6 +103,8 @@ sequenceDiagram
 - Membership is checked separately from authentication on every paid route,
   including downloads of content that was generated earlier
   (`platform-core/src/membership.rs`).
+- Every password hash the platform writes is Argon2id; an older bcrypt hash is
+  replaced at sign-in wherever bcrypt can confirm the whole password.
 
 ## Stored credentials and signing
 
@@ -146,6 +148,15 @@ explicit, greppable reveal.
 
 The signature check matters most for the remote signer: a response from outside
 the process is never trusted because of where it came from.
+
+Local keys sign with k256 0.14 and each request to the signing provider is
+authorized with p256 0.14, both on crypto-bigint 0.7: the 0.5 line under the
+earlier signers had secret-dependent timing (RUSTSEC-2026-0387). The new
+signers were compared with the old ones before the switch: for every digest
+below the curve order the new signatures are byte for byte the earlier ones,
+over fixed keys, actions and requests. Above it, which a Keccak digest
+practically never is and about one SHA-256 request hash in 2^32 is, they
+differ and still verify.
 
 ## Payments and membership
 
@@ -195,6 +206,24 @@ sequenceDiagram
   payment they started is awaited, so returning to the page does not reload
   their account.
 
+## Hardening around the request path
+
+- Every JSON body and query string the API parses for a member's request may
+  carry only the fields its route declares; anything else is refused. The
+  social service refuses an unexpected body field too. Provider notifications
+  are verified as received instead (see above).
+- Requests to the API run under a deadline, apart from generating an audio
+  briefing, which waits on the voice provider under a bound of its own. In the
+  API a handler that panics answers with an error instead of dropping the
+  connection, and the API and the worker log a panic by its place in the code,
+  never by its message.
+- The published Rust crates forbid unsafe code, deny `unwrap` and `expect`
+  outside tests, and check integer overflow in release builds.
+- Rust dependencies are checked for published advisories, licenses and sources
+  (cargo-audit, cargo-deny), and Go modules for known vulnerabilities in the
+  code they call (govulncheck)
+  ([architecture, section 9](ARCHITECTURE.md#9-delivery-and-quality-gates)).
+
 ## Fail-closed properties and the tests that pin them
 
 Request authentication and rate limiting have their own private tests. The
@@ -212,6 +241,8 @@ properties below are the ones whose code and tests are published.
 | Only the signing provider's short refusal code is logged, never its message | `signing::tests::only_the_providers_short_code_is_taken_from_a_refusal` |
 | A lease is exclusive, owner-checked and renewable only by its owner | `state::lease_is_exclusive_until_released_and_owner_checked`, `state::same_owner_renews_and_expired_lease_can_be_taken` |
 | A nonce never repeats when the clock stalls or steps back | `state::nonce_never_repeats_when_the_clock_stalls_or_goes_back` |
+| Callers adding to one counter at once each get a sum of their own, so a limit kept in it cannot be raced past; a new count gets its expiry in the same step | `state::tests::the_in_memory_store_keeps_the_contract`, `state::tests::the_real_redis_checks_hold_on_the_stand_in`, `state::tests::a_count_is_created_with_its_expiry_in_the_same_step` |
+| The current signers produce the earlier signers' bytes, and a digest at or above the curve order still gets a valid signature | `signing::tests::action_signatures_are_the_bytes_ethers_produced`, `signing::tests::authorization_signatures_are_the_bytes_p256_0_13_produced`, `signing::tests::a_digest_at_or_above_the_order_still_gets_a_valid_signature` |
 | A Redis that stops answering fails the call instead of holding it forever | `state::timeout_tests::connecting_to_a_silent_server_fails_instead_of_hanging`, `state::timeout_tests::a_command_that_is_never_answered_fails_instead_of_hanging` |
 
 ## Social consent

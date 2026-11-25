@@ -44,33 +44,57 @@ type BirthMoment struct {
 	Longitude float64
 }
 
+// ErrNoBirthData is BirthMoment's answer when the member has saved no birth
+// date, or one that cannot be read as a date. Any other error from it means
+// the read itself failed.
+var ErrNoBirthData = errors.New("store: no birth data")
+
 func (s *Store) BirthMoment(ctx context.Context, userID string) (*BirthMoment, error) {
-	var dateStr, timeStr *string
-	var tzOff, lat, lon *float64
+	var b birthColumns
 	err := s.pool.QueryRow(ctx,
 		`SELECT birth_date::text, birth_time::text, birth_timezone_offset, birth_latitude, birth_longitude
 		 FROM users WHERE id = $1`, userID,
-	).Scan(&dateStr, &timeStr, &tzOff, &lat, &lon)
+	).Scan(b.targets()...)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNoBirthData
+	}
 	if err != nil {
 		return nil, err
 	}
-	if dateStr == nil || *dateStr == "" {
-		return nil, errors.New("no birth data")
+	return b.moment()
+}
+
+// birthColumns receives birth_date::text, birth_time::text,
+// birth_timezone_offset, birth_latitude and birth_longitude, in that order,
+// wherever a statement reads them.
+type birthColumns struct {
+	date, clock     *string
+	tzOff, lat, lon *float64
+}
+
+func (b *birthColumns) targets() []any {
+	return []any{&b.date, &b.clock, &b.tzOff, &b.lat, &b.lon}
+}
+
+// moment is the birth instant the columns describe, or ErrNoBirthData.
+func (b *birthColumns) moment() (*BirthMoment, error) {
+	if b.date == nil || *b.date == "" {
+		return nil, ErrNoBirthData
 	}
-	ts := ""
-	if timeStr != nil {
-		ts = *timeStr
+	clock := ""
+	if b.clock != nil {
+		clock = *b.clock
 	}
-	utc, err := birthUTC(*dateStr, ts, tzOff)
+	utc, err := birthUTC(*b.date, clock, b.tzOff)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %v", ErrNoBirthData, err)
 	}
 	bm := &BirthMoment{UTC: utc}
-	if lat != nil {
-		bm.Latitude = *lat
+	if b.lat != nil {
+		bm.Latitude = *b.lat
 	}
-	if lon != nil {
-		bm.Longitude = *lon
+	if b.lon != nil {
+		bm.Longitude = *b.lon
 	}
 	return bm, nil
 }
@@ -513,8 +537,7 @@ func (s *Store) RemoveFriend(ctx context.Context, userID, otherID string) (bool,
 	if err != nil {
 		return false, err
 	}
-	lo, hi := pairLoHi(userID, otherID)
-	if _, err := tx.Exec(ctx, `DELETE FROM synastry_consents WHERE user_lo = $1 AND user_hi = $2`, lo, hi); err != nil {
+	if _, err := tx.Exec(ctx, `DELETE FROM synastry_consents WHERE `+consentPair, userID, otherID); err != nil {
 		return false, err
 	}
 	// What each of the two wrote on the other's wall goes with the edge. A
@@ -597,16 +620,115 @@ func (s *Store) WithdrawFriendRequest(ctx context.Context, userID, otherID, requ
 	return tag.RowsAffected() > 0, nil
 }
 
+// AreFriends reports whether a and b are accepted friends. An error means the
+// question could not be answered; it never stands for "not friends".
 func (s *Store) AreFriends(ctx context.Context, a, b string) (bool, error) {
-	var one int
+	var friends bool
 	err := s.pool.QueryRow(ctx,
-		`SELECT 1 FROM friendships
-		 WHERE ((requester_id = $1 AND addressee_id = $2) OR (requester_id = $2 AND addressee_id = $1))
-		   AND status = 'accepted'`, a, b).Scan(&one)
+		`SELECT EXISTS (SELECT 1 FROM friendships
+		                WHERE ((requester_id = $1 AND addressee_id = $2) OR (requester_id = $2 AND addressee_id = $1))
+		                  AND status = 'accepted')`, a, b).Scan(&friends)
 	if err != nil {
-		return false, nil //nolint:nilerr // no row = not friends
+		return false, err
 	}
-	return true, nil
+	return friends, nil
+}
+
+// FriendProfile is what one member's dashboard shows a friend, read in one
+// statement. Birth is for computing that day's reading and is never sent.
+type FriendProfile struct {
+	Nick   string          // display name
+	Prefs  json.RawMessage // the stored dashboard document; nil when none
+	Status json.RawMessage // the self-published status; nil when none
+	Avatar string          // data URL; empty when none or over MaxAvatarBytes
+	Birth  *BirthMoment    // nil when no usable birth data is saved
+}
+
+// FriendProfile reads what viewer may see of owner's dashboard, in one round
+// trip. When the two are not accepted friends the answer is ErrNotFriends,
+// and nothing of owner's row comes back: the friendship is part of the
+// statement's condition (tested once, before the row is fetched), not a
+// check made after it.
+func (s *Store) FriendProfile(ctx context.Context, viewer, owner string) (*FriendProfile, error) {
+	var nick, mime *string
+	var avatar []byte
+	var birth birthColumns
+	p := &FriendProfile{}
+	err := s.pool.QueryRow(ctx, `
+		SELECT u.nick, u.dashboard_prefs, u.shared_status,
+		       CASE WHEN octet_length(u.avatar) <= $3 THEN u.avatar END, u.avatar_mime,
+		       u.birth_date::text, u.birth_time::text, u.birth_timezone_offset, u.birth_latitude, u.birth_longitude
+		FROM users u
+		WHERE u.id = $2
+		  AND EXISTS (SELECT 1 FROM friendships f
+		              WHERE ((f.requester_id = $1 AND f.addressee_id = $2) OR (f.requester_id = $2 AND f.addressee_id = $1))
+		                AND f.status = 'accepted')`,
+		viewer, owner, MaxAvatarBytes,
+	).Scan(append([]any{&nick, &p.Prefs, &p.Status, &avatar, &mime}, birth.targets()...)...)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFriends
+	}
+	if err != nil {
+		return nil, err
+	}
+	p.Nick = displayName(nick, owner)
+	p.Avatar = avatarDataURL(avatar, mime)
+	if bm, err := birth.moment(); err == nil {
+		p.Birth = bm
+	}
+	return p, nil
+}
+
+// SynastryPair is what comparing two members' charts needs, read in one
+// statement. Each part comes back only when the part before it allows: the
+// consent only between friends, the nick only for a friend, the two charts
+// only once both have said yes.
+type SynastryPair struct {
+	Friends bool
+	Consent SynastryConsent // Status "none" when nobody has asked
+	Nick    string          // the other member's display name; empty unless Friends
+	// The two birth moments, nil when not granted or not saved. Never sent.
+	Mine, Theirs *BirthMoment
+}
+
+// SynastryPair reads the pair (me, other) for a chart comparison in one round
+// trip. Which member is user_lo of the consent row is decided in SQL; see
+// consentPair.
+func (s *Store) SynastryPair(ctx context.Context, me, other string) (*SynastryPair, error) {
+	p := &SynastryPair{}
+	var nick *string
+	var mine, theirs birthColumns
+	err := s.pool.QueryRow(ctx, `
+		SELECT g.friends, COALESCE(c.status, 'none'), COALESCE(c.requested_by, ''), o.nick,
+		       a.birth_date::text, a.birth_time::text, a.birth_timezone_offset, a.birth_latitude, a.birth_longitude,
+		       CASE WHEN c.status = 'accepted' THEN o.birth_date::text END,
+		       CASE WHEN c.status = 'accepted' THEN o.birth_time::text END,
+		       CASE WHEN c.status = 'accepted' THEN o.birth_timezone_offset END,
+		       CASE WHEN c.status = 'accepted' THEN o.birth_latitude END,
+		       CASE WHEN c.status = 'accepted' THEN o.birth_longitude END
+		FROM (SELECT EXISTS (SELECT 1 FROM friendships f
+		                     WHERE ((f.requester_id = $1 AND f.addressee_id = $2) OR (f.requester_id = $2 AND f.addressee_id = $1))
+		                       AND f.status = 'accepted') AS friends
+		      OFFSET 0) g
+		LEFT JOIN synastry_consents c ON g.friends
+		      AND c.user_lo = LEAST($1::varchar, $2::varchar) AND c.user_hi = GREATEST($1::varchar, $2::varchar)
+		LEFT JOIN users a ON c.status = 'accepted' AND a.id = $1
+		LEFT JOIN users o ON g.friends AND o.id = $2`,
+		me, other,
+	).Scan(append(append([]any{&p.Friends, &p.Consent.Status, &p.Consent.RequestedBy, &nick},
+		mine.targets()...), theirs.targets()...)...)
+	if err != nil {
+		return nil, err
+	}
+	if !p.Friends {
+		return &SynastryPair{Consent: SynastryConsent{Status: "none"}}, nil
+	}
+	p.Nick = displayName(nick, other)
+	if p.Consent.Status == "accepted" {
+		p.Mine, _ = mine.moment()
+		p.Theirs, _ = theirs.moment()
+	}
+	return p, nil
 }
 
 // ListFriendships loads relationships and their consent state in one query.
@@ -715,12 +837,24 @@ func (s *Store) ListFriendships(ctx context.Context, userID string) (*Friendship
 // cancelled after it was declined is kept in the state 'withdrawn': still a
 // "no" with its wait, shown to them as no request at all.
 
+// pairLoHi orders a pair by bytes. It names the pair's advisory lock (see
+// friendPairLockKey), where any fixed order will do. It does not decide which
+// member of a synastry_consents row is user_lo: see consentPair.
 func pairLoHi(a, b string) (string, string) {
 	if a < b {
 		return a, b
 	}
 	return b, a
 }
+
+// consentPair selects the synastry_consents row of the pair $1, $2.
+//
+// Which of the two is user_lo is decided here, in SQL, by the same comparison
+// the table's CHECK (user_lo < user_hi) makes: the database's collation. Go
+// compares bytes, and the two disagree for ids with capital letters or some
+// punctuation; a pair ordered by bytes then broke the CHECK on insert and
+// was never found on read.
+const consentPair = `user_lo = LEAST($1::varchar, $2::varchar) AND user_hi = GREATEST($1::varchar, $2::varchar)`
 
 type SynastryConsent struct {
 	Status      string // none | pending | accepted | declined | withdrawn
@@ -757,18 +891,6 @@ func (c *SynastryConsent) SeenBy(viewer string) string {
 	return "none"
 }
 
-func (s *Store) SynastryConsentState(ctx context.Context, a, b string) (*SynastryConsent, error) {
-	lo, hi := pairLoHi(a, b)
-	var status, reqBy string
-	err := s.pool.QueryRow(ctx,
-		`SELECT status, requested_by FROM synastry_consents WHERE user_lo = $1 AND user_hi = $2`,
-		lo, hi).Scan(&status, &reqBy)
-	if err != nil {
-		return &SynastryConsent{Status: "none"}, nil //nolint:nilerr // no row = no consent yet
-	}
-	return &SynastryConsent{Status: status, RequestedBy: reqBy}, nil
-}
-
 // RequestSynastry moves the pair's consent forward from the caller's side.
 // Returns "requested" | "accepted" | "already-requested" | "already-accepted".
 //
@@ -776,14 +898,13 @@ func (s *Store) SynastryConsentState(ctx context.Context, a, b string) (*Synastr
 // declined were still waiting: "already-requested" while it is on their list,
 // "requested" once they have cancelled it, whether or not anything was sent.
 func (s *Store) RequestSynastry(ctx context.Context, me, other string) (string, error) {
-	lo, hi := pairLoHi(me, other)
 	cur := SynastryConsent{Status: "none"}
 	var cooled bool
 	err := s.pool.QueryRow(ctx,
 		`SELECT status, requested_by,
 		        (responded_at IS NULL OR responded_at <= NOW() - make_interval(secs => $3))
-		 FROM synastry_consents WHERE user_lo = $1 AND user_hi = $2`,
-		lo, hi, friendRequestCooldown.Seconds()).Scan(&cur.Status, &cur.RequestedBy, &cooled)
+		 FROM synastry_consents WHERE `+consentPair,
+		me, other, friendRequestCooldown.Seconds()).Scan(&cur.Status, &cur.RequestedBy, &cooled)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return "", err
 	}
@@ -791,9 +912,9 @@ func (s *Store) RequestSynastry(ctx context.Context, me, other string) (string, 
 	case "none":
 		_, err := s.pool.Exec(ctx,
 			`INSERT INTO synastry_consents (id, user_lo, user_hi, requested_by, status)
-			 VALUES ($1, $2, $3, $4, 'pending')
+			 VALUES ($3, LEAST($1::varchar, $2::varchar), GREATEST($1::varchar, $2::varchar), $1, 'pending')
 			 ON CONFLICT (user_lo, user_hi) DO NOTHING`,
-			newID("sy"), lo, hi, me)
+			me, other, newID("sy"))
 		if err != nil {
 			return "", err
 		}
@@ -807,8 +928,8 @@ func (s *Store) RequestSynastry(ctx context.Context, me, other string) (string, 
 		// it can never flip the caller's OWN request to accepted.
 		tag, err := s.pool.Exec(ctx,
 			`UPDATE synastry_consents SET status = 'accepted', responded_at = NOW()
-			 WHERE user_lo = $1 AND user_hi = $2 AND status = 'pending' AND requested_by <> $3`,
-			lo, hi, me)
+			 WHERE `+consentPair+` AND status = 'pending' AND requested_by <> $1`,
+			me, other)
 		if err != nil {
 			return "", err
 		}
@@ -837,8 +958,8 @@ func (s *Store) RequestSynastry(ctx context.Context, me, other string) (string, 
 		if cancelled {
 			if _, err := s.pool.Exec(ctx,
 				`UPDATE synastry_consents SET status = 'declined'
-				 WHERE user_lo = $1 AND user_hi = $2 AND status = 'withdrawn' AND requested_by = $3`,
-				lo, hi, me); err != nil {
+				 WHERE `+consentPair+` AND status = 'withdrawn' AND requested_by = $1`,
+				me, other); err != nil {
 				return "", err
 			}
 		}
@@ -850,11 +971,11 @@ func (s *Store) RequestSynastry(ctx context.Context, me, other string) (string, 
 	// change between the read above and this write cannot skip the wait.
 	tag, err := s.pool.Exec(ctx,
 		`UPDATE synastry_consents
-		 SET status = 'pending', requested_by = $3, created_at = NOW(), responded_at = NULL
-		 WHERE user_lo = $1 AND user_hi = $2 AND status IN ('declined', 'withdrawn')
-		   AND (requested_by <> $3 OR responded_at IS NULL
-		        OR responded_at <= NOW() - make_interval(secs => $4))`,
-		lo, hi, me, friendRequestCooldown.Seconds())
+		 SET status = 'pending', requested_by = $1, created_at = NOW(), responded_at = NULL
+		 WHERE `+consentPair+` AND status IN ('declined', 'withdrawn')
+		   AND (requested_by <> $1 OR responded_at IS NULL
+		        OR responded_at <= NOW() - make_interval(secs => $3))`,
+		me, other, friendRequestCooldown.Seconds())
 	if err != nil {
 		return "", err
 	}
@@ -868,15 +989,14 @@ func (s *Store) RequestSynastry(ctx context.Context, me, other string) (string, 
 // records when it was given (responded_at): the wait before the request can
 // be made again runs from there.
 func (s *Store) RespondSynastry(ctx context.Context, me, other string, accept bool) (bool, error) {
-	lo, hi := pairLoHi(me, other)
 	status := "declined"
 	if accept {
 		status = "accepted"
 	}
 	tag, err := s.pool.Exec(ctx,
 		`UPDATE synastry_consents SET status = $3, responded_at = NOW()
-		 WHERE user_lo = $1 AND user_hi = $2 AND status = 'pending' AND requested_by <> $4`,
-		lo, hi, status, me)
+		 WHERE `+consentPair+` AND status = 'pending' AND requested_by <> $1`,
+		me, other, status)
 	if err != nil {
 		return false, err
 	}
@@ -890,7 +1010,6 @@ func (s *Store) RespondSynastry(ctx context.Context, me, other string, accept bo
 // answered, and from then on shown, exactly what cancelling a waiting request
 // gives: done, and no request.
 func (s *Store) RevokeSynastry(ctx context.Context, me, other string) (bool, error) {
-	lo, hi := pairLoHi(me, other)
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted})
 	if err != nil {
 		return false, err
@@ -901,8 +1020,8 @@ func (s *Store) RevokeSynastry(ctx context.Context, me, other string) (bool, err
 	var status, requestedBy string
 	err = tx.QueryRow(ctx,
 		`SELECT status, requested_by FROM synastry_consents
-		 WHERE user_lo = $1 AND user_hi = $2
-		 FOR UPDATE`, lo, hi).Scan(&status, &requestedBy)
+		 WHERE `+consentPair+`
+		 FOR UPDATE`, me, other).Scan(&status, &requestedBy)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return false, nil
 	}
@@ -913,8 +1032,8 @@ func (s *Store) RevokeSynastry(ctx context.Context, me, other string) (bool, err
 		switch status {
 		case "declined":
 			if _, err := tx.Exec(ctx,
-				`UPDATE synastry_consents SET status = 'withdrawn' WHERE user_lo = $1 AND user_hi = $2`,
-				lo, hi); err != nil {
+				`UPDATE synastry_consents SET status = 'withdrawn' WHERE `+consentPair,
+				me, other); err != nil {
 				return false, err
 			}
 			if err := tx.Commit(ctx); err != nil {
@@ -927,7 +1046,7 @@ func (s *Store) RevokeSynastry(ctx context.Context, me, other string) (bool, err
 		}
 	}
 	if _, err := tx.Exec(ctx,
-		`DELETE FROM synastry_consents WHERE user_lo = $1 AND user_hi = $2`, lo, hi); err != nil {
+		`DELETE FROM synastry_consents WHERE `+consentPair, me, other); err != nil {
 		return false, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -996,16 +1115,6 @@ func (s *Store) SetNick(ctx context.Context, userID, nick string) error {
 	return err
 }
 
-// DisplayNameOf is the read used by handlers that previously exposed email.
-func (s *Store) DisplayNameOf(ctx context.Context, userID string) (string, error) {
-	var nick *string
-	err := s.pool.QueryRow(ctx, `SELECT nick FROM users WHERE id = $1`, userID).Scan(&nick)
-	if err != nil {
-		return "", err
-	}
-	return displayName(nick, userID), nil
-}
-
 // ── avatar (small thumbnail, BYTEA, served inline as a data URL) ─────────────
 
 // MaxAvatarBytes is the one cap on a profile picture, in decoded bytes.
@@ -1023,35 +1132,40 @@ const MaxAvatarBytes = 32 * 1024
 
 var ErrAvatarTooLarge = errors.New("store: avatar exceeds MaxAvatarBytes")
 
+// avatarDataURL is a stored picture as the data URL the app shows. It is
+// built in one allocation of exactly its own size: a list reply carries
+// hundreds of these, and encoding a picture, then copying it into a string,
+// then into the URL, made each one three times over.
 func avatarDataURL(b []byte, mime *string) string {
 	if len(b) == 0 || mime == nil || *mime == "" {
 		return ""
 	}
-	return "data:" + *mime + ";base64," + base64.StdEncoding.EncodeToString(b)
+	var url strings.Builder
+	url.Grow(len("data:") + len(*mime) + len(";base64,") + base64.StdEncoding.EncodedLen(len(b)))
+	url.WriteString("data:")
+	url.WriteString(*mime)
+	url.WriteString(";base64,")
+	// Whole groups of three bytes per chunk, so padding can only come at the
+	// very end, exactly where encoding it in one go puts it.
+	const chunk = 3 * 256
+	var out [4 * 256]byte
+	for len(b) > 0 {
+		n := min(len(b), chunk)
+		base64.StdEncoding.Encode(out[:], b[:n])
+		url.Write(out[:base64.StdEncoding.EncodedLen(n)])
+		b = b[n:]
+	}
+	return url.String()
 }
 
 // Avatar is the OWNER's read of their own picture: whatever is stored, even
 // one over MaxAvatarBytes. Never use it to show one member's picture to
-// another; that is AvatarForOthers.
+// another: every read for others tests the size in SQL (see MaxAvatarBytes).
 func (s *Store) Avatar(ctx context.Context, userID string) (string, error) {
 	var b []byte
 	var mime *string
 	err := s.pool.QueryRow(ctx,
 		`SELECT avatar, avatar_mime FROM users WHERE id = $1`, userID).Scan(&b, &mime)
-	if err != nil {
-		return "", err
-	}
-	return avatarDataURL(b, mime), nil
-}
-
-// AvatarForOthers is a member's picture as other members may receive it:
-// empty when there is none or when the stored one is over MaxAvatarBytes.
-func (s *Store) AvatarForOthers(ctx context.Context, userID string) (string, error) {
-	var b []byte
-	var mime *string
-	err := s.pool.QueryRow(ctx,
-		`SELECT CASE WHEN octet_length(avatar) <= $2 THEN avatar END, avatar_mime
-		 FROM users WHERE id = $1`, userID, MaxAvatarBytes).Scan(&b, &mime)
 	if err != nil {
 		return "", err
 	}
@@ -1165,6 +1279,29 @@ func (s *Store) AddWallComment(ctx context.Context, profileID, authorID, body st
 	return id, nil
 }
 
+// WallPage is one page of a wall: its comments, newest first, and each
+// author's picture once.
+type WallPage struct {
+	// Comments carry no picture (AuthorAvatar is empty); see Pictures and
+	// Inline.
+	Comments []WallComment
+	// Pictures maps an author's id to their picture as a data URL, for every
+	// author on the page who has one within MaxAvatarBytes.
+	Pictures map[string]string
+}
+
+// Inline is the page the way a wall has always been sent: every comment with
+// its author's picture. A picture that appears on many comments is still
+// read and built only once; the comments share it.
+func (p *WallPage) Inline() []WallComment {
+	out := make([]WallComment, len(p.Comments))
+	for i, c := range p.Comments {
+		c.AuthorAvatar = p.Pictures[c.AuthorID]
+		out[i] = c
+	}
+	return out
+}
+
 // Wall lists the newest comments on a profile.
 //
 // Only comments by members who are accepted friends of the wall's owner right
@@ -1172,27 +1309,42 @@ func (s *Store) AddWallComment(ctx context.Context, profileID, authorID, body st
 // friendship deletes the pair's comments, so this matters for what was left
 // behind before that was so: each row is shown with its author's current nick
 // and picture, which nobody but a friend should be following.
-func (s *Store) Wall(ctx context.Context, profileID string, limit int) ([]WallComment, error) {
+//
+// Each author's picture is read out of the table once per page, on the
+// newest of their comments, not once per comment: a friend who wrote most of
+// a page used to have the same picture read and encoded fifty times. Comments
+// written at the same instant are listed newest id first, the same on every
+// read.
+func (s *Store) Wall(ctx context.Context, profileID string, limit int) (*WallPage, error) {
 	if limit <= 0 || limit > 100 {
 		limit = 50
 	}
 	rows, err := s.pool.Query(ctx,
-		`SELECT c.id, c.author_id, u.nick,
-		        CASE WHEN octet_length(u.avatar) <= $3 THEN u.avatar END, u.avatar_mime,
-		        c.body, c.created_at::text
-		 FROM profile_comments c JOIN users u ON u.id = c.author_id
-		 WHERE c.profile_id = $1
-		   AND (c.author_id = c.profile_id OR EXISTS (
-		        SELECT 1 FROM friendships f
-		        WHERE f.status = 'accepted'
-		          AND ((f.requester_id = c.profile_id AND f.addressee_id = c.author_id)
-		            OR (f.requester_id = c.author_id AND f.addressee_id = c.profile_id))))
-		 ORDER BY c.created_at DESC LIMIT $2`, profileID, limit, MaxAvatarBytes)
+		`WITH page AS (
+		     SELECT c.id, c.author_id, c.body, c.created_at
+		     FROM profile_comments c
+		     WHERE c.profile_id = $1
+		       AND (c.author_id = c.profile_id OR EXISTS (
+		            SELECT 1 FROM friendships f
+		            WHERE f.status = 'accepted'
+		              AND ((f.requester_id = c.profile_id AND f.addressee_id = c.author_id)
+		                OR (f.requester_id = c.author_id AND f.addressee_id = c.profile_id))))
+		     ORDER BY c.created_at DESC, c.id DESC LIMIT $2
+		 ), ranked AS (
+		     SELECT p.*, row_number() OVER (PARTITION BY p.author_id ORDER BY p.created_at DESC, p.id DESC) AS rn
+		     FROM page p
+		 )
+		 SELECT r.id, r.author_id, u.nick,
+		        CASE WHEN r.rn = 1 AND octet_length(u.avatar) <= $3 THEN u.avatar END,
+		        CASE WHEN r.rn = 1 THEN u.avatar_mime END,
+		        r.body, r.created_at::text
+		 FROM ranked r JOIN users u ON u.id = r.author_id
+		 ORDER BY r.created_at DESC, r.id DESC`, profileID, limit, MaxAvatarBytes)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	out := []WallComment{}
+	page := &WallPage{Comments: []WallComment{}, Pictures: map[string]string{}}
 	for rows.Next() {
 		var w WallComment
 		var nick *string
@@ -1202,8 +1354,10 @@ func (s *Store) Wall(ctx context.Context, profileID string, limit int) ([]WallCo
 			return nil, err
 		}
 		w.AuthorNick = displayName(nick, w.AuthorID)
-		w.AuthorAvatar = avatarDataURL(ab, am)
-		out = append(out, w)
+		if url := avatarDataURL(ab, am); url != "" {
+			page.Pictures[w.AuthorID] = url
+		}
+		page.Comments = append(page.Comments, w)
 	}
 	// A read that fails part-way (timeout, dropped connection) ends the loop
 	// just like the last row does; without this check the caller would get a
@@ -1211,7 +1365,7 @@ func (s *Store) Wall(ctx context.Context, profileID string, limit int) ([]WallCo
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	return out, nil
+	return page, nil
 }
 
 // DeleteWallComment removes a comment if the caller owns the wall or wrote it.
@@ -1311,6 +1465,14 @@ func (s *Store) AcceptedFriendIDs(ctx context.Context, ownerID string, ids []str
 // other error from it means the lookup itself failed.
 var ErrNoSuchUser = errors.New("store: no member goes by that nick")
 
+// defaultHandleSQL finds the members without a nick whose id ends in the
+// four characters given (in lower case). idx_users_default_handle (see
+// defaultHandleIndexSQL) holds exactly this expression under exactly this
+// condition; change one and the other must change with it.
+const defaultHandleSQL = `SELECT id, email FROM users
+		 WHERE nick IS NULL AND LOWER(RIGHT(id, 4)) = $1
+		 LIMIT 2`
+
 // UserByNick resolves a public handle. Case-insensitive, matching the unique
 // index from migration 000006.
 func (s *Store) UserByNick(ctx context.Context, nick string) (*PublicUser, error) {
@@ -1336,10 +1498,7 @@ func (s *Store) UserByNick(ctx context.Context, nick string) (*PublicUser, error
 	// without a nick ends in them, the handle names nobody: picking one (the
 	// query used to take whichever row came first) sent a request meant for
 	// one member to another. Two rows are enough to know.
-	rows, err := s.pool.Query(ctx,
-		`SELECT id, email FROM users
-		 WHERE nick IS NULL AND LOWER(RIGHT(id, 4)) = $1
-		 LIMIT 2`, low[len("seeker-"):])
+	rows, err := s.pool.Query(ctx, defaultHandleSQL, low[len("seeker-"):])
 	if err != nil {
 		return nil, err
 	}
@@ -1373,39 +1532,31 @@ type Unread struct {
 // UnreadCounts is deliberately time-based rather than a per-item read flag:
 // every event already carries a timestamp, so one row per user answers all
 // three questions without a join table per surface.
+//
+// One statement, one round trip. A member with no social_seen row yet has
+// never looked at anything, and everything counts. The comparison is written
+// so that a cached generic plan still finds the range in the index
+// (created_at > a value) instead of filtering every row.
 func (s *Store) UnreadCounts(ctx context.Context, userID string) (*Unread, error) {
-	var friendsSeen, synastrySeen, wallSeen *time.Time
-	err := s.pool.QueryRow(ctx,
-		`SELECT friends_seen_at, synastry_seen_at, wall_seen_at
-		 FROM social_seen WHERE user_id = $1`, userID).Scan(&friendsSeen, &synastrySeen, &wallSeen)
-	if err != nil {
-		// No row yet — never looked at anything.
-		friendsSeen, synastrySeen, wallSeen = nil, nil, nil
-	}
-
 	out := &Unread{}
-	// Incoming friend requests still pending.
-	if err := s.pool.QueryRow(ctx,
-		`SELECT COUNT(*) FROM friendships
-		 WHERE addressee_id = $1 AND status = 'pending'
-		   AND ($2::timestamptz IS NULL OR created_at > $2)`,
-		userID, friendsSeen).Scan(&out.FriendRequests); err != nil {
-		return nil, err
-	}
-	// Synastry requests awaiting THIS user's answer.
-	if err := s.pool.QueryRow(ctx,
-		`SELECT COUNT(*) FROM synastry_consents
-		 WHERE (user_lo = $1 OR user_hi = $1) AND status = 'pending' AND requested_by <> $1
-		   AND ($2::timestamptz IS NULL OR created_at > $2)`,
-		userID, synastrySeen).Scan(&out.SynastryRequests); err != nil {
-		return nil, err
-	}
-	// Comments others left on this user's wall.
-	if err := s.pool.QueryRow(ctx,
-		`SELECT COUNT(*) FROM profile_comments
-		 WHERE profile_id = $1 AND author_id <> $1
-		   AND ($2::timestamptz IS NULL OR created_at > $2)`,
-		userID, wallSeen).Scan(&out.WallComments); err != nil {
+	err := s.pool.QueryRow(ctx, `
+		SELECT
+		  -- Incoming friend requests still pending.
+		  (SELECT COUNT(*) FROM friendships f
+		    WHERE f.addressee_id = $1 AND f.status = 'pending'
+		      AND f.created_at > COALESCE(seen.friends_seen_at, '-infinity')),
+		  -- Synastry requests awaiting THIS user's answer.
+		  (SELECT COUNT(*) FROM synastry_consents c
+		    WHERE (c.user_lo = $1 OR c.user_hi = $1) AND c.status = 'pending' AND c.requested_by <> $1
+		      AND c.created_at > COALESCE(seen.synastry_seen_at, '-infinity')),
+		  -- Comments others left on this user's wall.
+		  (SELECT COUNT(*) FROM profile_comments p
+		    WHERE p.profile_id = $1 AND p.author_id <> $1
+		      AND p.created_at > COALESCE(seen.wall_seen_at, '-infinity'))
+		FROM (SELECT $1::varchar AS user_id) me
+		LEFT JOIN social_seen seen ON seen.user_id = me.user_id`,
+		userID).Scan(&out.FriendRequests, &out.SynastryRequests, &out.WallComments)
+	if err != nil {
 		return nil, err
 	}
 	out.Total = out.FriendRequests + out.SynastryRequests + out.WallComments

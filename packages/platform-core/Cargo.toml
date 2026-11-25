@@ -11,10 +11,13 @@ async-trait = "0.1"
 base64 = "0.22"
 chrono = { version = "0.4", features = ["serde"] }
 ethers-core = "2"
-ethers-signers = "2"
 hex = "0.4"
 hmac = "0.12"
-p256 = { version = "0.13", features = ["ecdsa", "pkcs8"] }
+# Action signatures (k256) and the signing provider's request signatures
+# (p256) on crypto-bigint 0.7; ethers-core keeps the types, hashing and
+# public signature recovery.
+k256 = { version = "0.14", features = ["ecdsa"] }
+p256 = { version = "0.14", features = ["ecdsa", "pkcs8"] }
 redis = { version = "0.29", features = ["tokio-comp", "connection-manager"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 rmp-serde = "1"
@@ -29,11 +32,23 @@ tracing = "0.1"
 uuid = { version = "1", features = ["v4"] }
 
 [dev-dependencies]
-# A stand-in wallet provider and a silent Redis server in the tests.
+# A stand-in wallet provider, a silent Redis server and a Redis stand-in in the
+# tests.
 axum = "0.8"
 tokio = { version = "1", features = ["net", "io-util", "test-util"] }
+# The signers the code used before, as references in src/signing.rs's tests.
+ethers-signers = "2"
+p256_013 = { package = "p256", version = "0.13", features = ["ecdsa", "pkcs8"] }
 
 [lints.rust]
-unsafe_op_in_unsafe_fn = "deny"
+unsafe_code = "forbid"
 [lints.clippy]
 await_holding_lock = "deny"
+# No unwrap or expect outside tests (clippy.toml allows them in tests). A true
+# invariant takes #[expect(clippy::expect_used, reason = "...")].
+unwrap_used = "deny"
+expect_used = "deny"
+
+[profile.release]
+# Integer overflow panics in release as it does in debug, instead of wrapping.
+overflow-checks = true

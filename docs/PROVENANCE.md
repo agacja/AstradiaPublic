@@ -1,7 +1,7 @@
 # Component provenance
 
 Prepared from Astradia's maintained source in November 2026, and brought up to
-the source deployed on 24 November 2026. No private commit
+the source deployed on 25 November 2026. No private commit
 history, production configuration, account data, or model reference results were
 copied. The public repository's initial commit is its own root commit.
 
@@ -23,21 +23,24 @@ copied. The public repository's initial commit is its own root commit.
 | `docs/AUDIO-BRIEFINGS.md`, `docs/schema/audio-briefings.sql` | Product design note with the voice identifier, model, service name, private paths and every numeric limit removed, and a closing section added; the table definition is unchanged and its comment shortened |
 | `frontend/src/App.tsx`, `ChartWheel.tsx`, styles, contracts, contract tests | New public reviewer interface and examples; not a claim to be the complete production UI |
 | `packages/social-store/social.go` | Product social persistence functions, with the package name adjusted for independent use and two comments reworded to leave out a limit of the private deployment |
-| `packages/social-store/social_test.go`, `social_unit_test.go`, `social_db_test.go` | Existing regression, unit and database tests with the package name adjusted and two comments reworded. The database tests call `testdb_test.go`, written for this workspace, in place of a private helper whose `users` table has columns this package does not use |
+| `packages/social-store/social_test.go`, `social_unit_test.go`, `social_db_test.go`, `reads_db_test.go` | Existing regression, unit and database tests with the package name adjusted and two comments reworded; in `reads_db_test.go` one fixture value and one comment are reworded. The database tests call `testdb_test.go`, written for this workspace, in place of a private helper whose `users` table has columns this package does not use |
+| `packages/social-store/indexes.go`, `indexes_db_test.go`, `pool_test.go` | The production index builder, with two comments reworded and the connection's application name changed; its tests and the pool-settings tests, taken from private test files that also cover code not published here, with their helpers adapted and one comment in each file reworded |
 | `packages/social-store/migrations/*` | The social service's migrations for the social tables, unchanged apart from one reworded comment. The first migration, which concerns a credential column, is not included |
-| `packages/social-store/store.go` | Minimal independent pool constructor; no credential vault, trading store, migration runner or production HTTP routes |
-| `services/ephemeris/**` | Independently scoped astronomy service, including its source offer, pinned dependencies, data and license notices |
-| `packages/platform-core/src/state.rs`, `flight.rs` | Production Rust modules, byte-identical to the source deployed on 24 November 2026 |
-| `packages/platform-core/src/vault.rs` | Production Rust module as deployed on 24 November 2026, without one constant that belongs to private wiring, and with one test renamed and its comment reworded |
-| `packages/platform-core/src/signing.rs` | Production Rust module as deployed on 24 November 2026; two paths changed so its HTTP helpers resolve inside this crate, and two account-setup action types omitted |
+| `packages/social-store/store.go` | Minimal independent pool constructor and its pool settings; no credential vault, trading store, migration runner or production HTTP routes |
+| `services/ephemeris/**` | Independently scoped astronomy service, including its source offer, pinned dependencies, lint settings, data and license notices |
+| `packages/platform-core/src/flight.rs` | Production Rust module, byte-identical to the source deployed on 25 November 2026 |
+| `packages/platform-core/src/state.rs` | Production Rust module as deployed on 25 November 2026, without the part of one test that exercises the private worker's receipt queue and with that test's comment reworded; one value in another test is renamed |
+| `packages/platform-core/src/vault.rs` | Production Rust module as deployed on 25 November 2026, without one constant that belongs to private wiring, and with one test renamed and its comment reworded |
+| `packages/platform-core/src/signing.rs` | Production Rust module as deployed on 25 November 2026; two paths changed so its HTTP helpers resolve inside this crate, and two account-setup action types omitted. The signature-comparison tests use cancel and transfer actions in place of the production ones; one of their comments is reworded and one of them renamed |
 | `packages/platform-core/src/http.rs` | The bounded response reader lifted from the private exchange adapter, and the no-redirect client and its shared form lifted from the private request-security module, given their own error type; nothing else from either |
 | `packages/platform-core/src/webhooks.rs` | The two notification-verification functions and their unit tests, lifted unchanged from the private billing module; checkout, pricing and membership writes excluded |
 | `packages/platform-core/src/membership.rs` | The subscription time check, its timestamp parser and its table test, lifted from the private access and database modules; the route policy and queries excluded |
 | `packages/platform-core/tests/signing_parity.rs`, `tests/fixtures/*` | The existing golden-vector test with the crate import and fixture path changed and a second, SDK-comparison test removed. The vectors are a small subset of the shared set (one exchange-signed and one user-signed action per network); keys and values are synthetic |
-| `packages/platform-core/tests/state.rs`, `Cargo.toml`, `lib.rs` | Written for this public workspace; `Cargo.lock` is the production lockfile reduced to this crate's dependencies |
-| `packages/go-primitives/vault/*` | Production Go package and tests as deployed on 24 November 2026, with comments reworded to describe the format only |
+| `packages/platform-core/tests/state.rs`, `Cargo.toml`, `clippy.toml`, `lib.rs` | Written for this public workspace, with lint settings modelled on the production crate's (this crate forbids unsafe code outright); `Cargo.lock` is the production lockfile reduced to this crate's dependencies |
+| `packages/go-primitives/vault/*` | Production Go package and tests as deployed on 25 November 2026, with comments reworded to describe the format only |
 | `packages/go-primitives/ephem/*` | Production Go package and test, formatted with `gofmt`; three comments reworded to describe the current runtime and to match what the test checks |
 | `docs/ARCHITECTURE.md`, `SECURITY-MODEL.md`, `EXECUTION-SAFETY.md` | Written for this public workspace from the source deployed in November 2026 and reviewed against it, with policy values omitted. They describe that source, not a live deployment's configuration |
+| `deny.toml`, `.cargo/audit.toml`, `.github/workflows/supply-chain.yml` | The production dependency policy and workflow, reduced to the advisories present in these lock files and to this repository's layout |
 | Documentation and publication checks | Written for this public workspace |
 
 The Go package is a database adapter, not an authorization service. The Rust
