@@ -328,6 +328,9 @@ state machine and the order lifecycle.
 - **Operator controls are persisted, not improvised.** Emergency actions are
   written down and carried out only by the lease-holding worker, and can only
   reduce exposure.
+- **An empty store is not an all-clear.** The store carries a mark that only
+  an operator writes; while it is missing, nothing adds exposure and closes
+  still go out.
 - **Fail closed everywhere.** A missing secret disables a route instead of
   opening it, an invalid service credential never falls through to a user
   identity, and error responses carry no request or upstream content.

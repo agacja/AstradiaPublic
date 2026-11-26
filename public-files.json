@@ -42,25 +42,25 @@
       "sha256": "8e8751a05789e3e276cd9ec04fc19918e3efbb347cbb808eaecf8129838cec87"
     },
     "docs/ARCHITECTURE.md": {
-      "sha256": "a00d23b0ec549d178997b51ed0eda5007b0647b34e4a467975a84e380a6391e8"
+      "sha256": "0600ddd3c9aac46630fffad7003ea8847e593b09eced963f076b39e74999597c"
     },
     "docs/AUDIO-BRIEFINGS.md": {
       "sha256": "76309fe775e5199fe2e1ed7ce905fb835686de23845f6e0a3cc060096171d572"
     },
     "docs/EXECUTION-SAFETY.md": {
-      "sha256": "8d1a1bbfa0196d0daafdc26fbc1eeac1eb9088c7fec52dfdd5b97ca4792edd74"
+      "sha256": "610f16c26c19c3d90c4bd56a1f8bfd1c9685b0529ca361df27415ff0c43cd395"
     },
     "docs/PROVENANCE.md": {
-      "sha256": "3b9584e8c1ed2cf3cfaf65f359f0a3abd076c28fff151a61a2afa9692ef8c828"
+      "sha256": "d168b443d54fd112df0420eb61b9941d534295a0631f8f90bcb1f0c08c2f56d5"
     },
     "docs/PUBLIC-BOUNDARY.md": {
       "sha256": "7edad45b93d4a1345999dcef4d3e90250bf1783e0867ebdeb92bf2cd7792de7b"
     },
     "docs/REVIEWING.md": {
-      "sha256": "ada6b37d0b847971ed61ce9e311dca640f594deb4920c0b7aeab78f0b02cbbd7"
+      "sha256": "a302b70e68af6e1cb70fbeacd6b8760d9989ee3f19a327208a2b0b455b9f0937"
     },
     "docs/SECURITY-MODEL.md": {
-      "sha256": "a011bb5c66af0fd978081292fbf87ef150f7684caba1e549ce8c798bf243d555"
+      "sha256": "193a53e1691adebb4b9bab8d24bd11129a862d146b39b49b9e1b6968ce37d564"
     },
     "docs/schema/audio-briefings.sql": {
       "sha256": "4feab863e15080f704ae874e4dc8d1fa749f514b43eb1b92a4461a72a8be5719"
@@ -180,13 +180,13 @@
       "sha256": "a160b329cfbc6eb2ff2ba6373e1ab7018ab4f76cb1fea60e970b0fa0e7d4fa9d"
     },
     "packages/platform-core/README.md": {
-      "sha256": "28c5a3586f57cc0e9b171e7469af5ccb11f571e82eac0138372f00aa80b22b75"
+      "sha256": "000fdce1144bf6754fcc7f1ec8de2f45b2c4b545359d542f09c6f3a48af7cf60"
     },
     "packages/platform-core/clippy.toml": {
       "sha256": "14ec42fbf076be015a8bf9d2e5cbcda1d735dc2d658e1ed9623798f0686c0665"
     },
     "packages/platform-core/src/flight.rs": {
-      "sha256": "8e9c8172d1c665db6ebeacbf4d3169631e90723d9814c03eea3fa04822b9d603"
+      "sha256": "9ac3767dd1cc343a11761140e8f8525bbc9adb9da43637de2979d037562c4385"
     },
     "packages/platform-core/src/http.rs": {
       "sha256": "276af2b1c8090c44ac0fbd38ce3a7d63305b2984477d637b349078b6f9a24e84"
@@ -201,7 +201,7 @@
       "sha256": "8fa9f2ac2b6fa0e6b53d263f5f7c178a83ed868bd0044e3647e1608f43e44a1a"
     },
     "packages/platform-core/src/state.rs": {
-      "sha256": "20cccda32870cc571a48d8a46716854c4acdd290231fcde1bfbcc1a399e3c77b"
+      "sha256": "8ea1337b13c28c05081ee62047ae94129f009d0cd9fe48695ca06245e34d8e64"
     },
     "packages/platform-core/src/vault.rs": {
       "sha256": "84280a6e2b1060f87b00049689c4c53297271110e9bf8d14f10a7a4708945446"

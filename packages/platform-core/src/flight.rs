@@ -15,7 +15,7 @@ use tokio::{sync::OnceCell, time::Instant};
 
 /// The maps below are only locked for a lookup, an insert or a removal, so a
 /// poisoned lock still guards a consistent map.
-fn locked<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+pub(crate) fn locked<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
@@ -218,6 +218,17 @@ impl<K: Eq + Hash + Clone, V: Clone, E: Clone> Cached<K, V, E> {
         F: FnOnce() -> Fut,
         Fut: Future<Output = Result<V, E>>,
     {
+        self.get_judged(key, |_| ttl, work).await
+    }
+    /// [`Cached::get_for`], where how long a new result is kept is decided
+    /// from the result itself: a result that is only good for now need not
+    /// be kept as long as one that stays good for longer.
+    pub async fn get_judged<F, Fut, L>(&self, key: K, lifetime: L, work: F) -> Result<V, E>
+    where
+        F: FnOnce() -> Fut,
+        Fut: Future<Output = Result<V, E>>,
+        L: FnOnce(&V) -> Duration,
+    {
         if let Some(value) = self.fresh(&key) {
             return Ok(value);
         }
@@ -228,7 +239,7 @@ impl<K: Eq + Hash + Clone, V: Clone, E: Clone> Cached<K, V, E> {
                     return Ok(value);
                 }
                 let value = work().await?;
-                self.keep(key.clone(), value.clone(), ttl);
+                self.keep(key.clone(), value.clone(), lifetime(&value));
                 Ok(value)
             })
             .await
@@ -372,20 +383,39 @@ mod tests {
         let runs = AtomicUsize::new(0);
         let work = || async { Ok(runs.fetch_add(1, Ordering::SeqCst) + 1) };
         assert_eq!(
-            cache.get_for("day", Duration::from_secs(3600), work).await,
+            cache.get_for("long", Duration::from_secs(3600), work).await,
             Ok(1)
         );
-        assert_eq!(cache.get("minute", work).await, Ok(2));
+        assert_eq!(cache.get("short", work).await, Ok(2));
         tokio::time::advance(Duration::from_secs(31)).await;
         // The default lifetime has passed for one, not for the other. A
         // value already kept is not given a new lifetime by a later caller.
-        assert_eq!(cache.get("day", work).await, Ok(1));
-        assert_eq!(cache.get("minute", work).await, Ok(3));
+        assert_eq!(cache.get("long", work).await, Ok(1));
+        assert_eq!(cache.get("short", work).await, Ok(3));
         tokio::time::advance(Duration::from_secs(3570)).await;
         assert_eq!(
-            cache.get_for("day", Duration::from_secs(3600), work).await,
+            cache.get_for("long", Duration::from_secs(3600), work).await,
             Ok(4)
         );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_result_is_kept_for_as_long_as_the_result_itself_calls_for() {
+        let cache = Cached::<&str, usize, ()>::new(Duration::from_secs(30), 8);
+        let runs = AtomicUsize::new(0);
+        let work = || async { Ok(runs.fetch_add(1, Ordering::SeqCst) + 1) };
+        // An odd result is good for an hour, an even one for a minute.
+        let judge = |value: &usize| Duration::from_secs(if value % 2 == 1 { 3600 } else { 60 });
+        assert_eq!(cache.get_judged("a", judge, work).await, Ok(1));
+        assert_eq!(cache.get_judged("b", judge, work).await, Ok(2));
+        tokio::time::advance(Duration::from_secs(61)).await;
+        // The short one is asked for again, the long one is not; a value
+        // already kept is not judged again.
+        assert_eq!(cache.get_judged("a", judge, work).await, Ok(1));
+        assert_eq!(cache.get_judged("b", judge, work).await, Ok(3));
+        tokio::time::advance(Duration::from_secs(3540)).await;
+        assert_eq!(cache.get_judged("a", judge, work).await, Ok(4));
+        assert_eq!(cache.get_judged("b", judge, work).await, Ok(3));
     }
 
     #[tokio::test(start_paused = true)]

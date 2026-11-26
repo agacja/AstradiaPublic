@@ -183,6 +183,13 @@ rehearsal unhealthy. It repeats periodically while it runs.
 - A global stop switch lives in the same durable store the worker reads before
   every action. It is a stored fact, not a signal to a process, so it holds
   across restarts and deploys.
+- An empty store is not an all-clear. A store that came back empty (a lost
+  volume, a flush, a restore from before the state was written) would answer
+  "nothing is stopped" to every question, so the store carries a mark that
+  only an operator writes, never a start, a deploy or a cycle. While the mark
+  is missing, or cannot be read, nothing is opened or increased, and closes
+  and reductions still go out (`state.rs`, module `armed`). The mark shows
+  that the store did not come back empty, not that it is current.
 - Emergency work is written down by the API and carried out only by the
   lease-holding worker, and can only reduce exposure. An operator request
   cannot open or increase a position.

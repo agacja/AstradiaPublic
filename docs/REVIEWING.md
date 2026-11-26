@@ -48,7 +48,9 @@ Suggested review order:
 7. `packages/platform-core/src/state.rs` and `tests/state.rs`: atomic leases and
    nonces, the guard that releases on drop, and Redis calls that fail instead of
    waiting forever; batched reads, an atomic counter and queues keyed by id,
-   checked against a Redis stand-in that answers the real wire protocol.
+   checked against a Redis stand-in that answers the real wire protocol; and
+   the store mark (`armed`), without which a store that came back empty would
+   look like one where nothing is stopped.
    `packages/platform-core/src/flight.rs`: request coalescing,
    where callers asking for the same thing at the same moment share one piece
    of work, with cancellation handled so an abandoned key never stays behind,

@@ -160,6 +160,199 @@ pub async fn write(s: &dyn Store, key: &str, value: &impl Serialize, ttl: u64) -
     )
     .await
 }
+/// The mark of a store whose state is relied on.
+///
+/// What holds trading back is kept in the store and nowhere else, the global
+/// stop first. A key that is missing reads as "not set". So a store that has
+/// lost its state (a lost volume, a flush, a restore from before the state was
+/// written) answers "nothing is stopped" to every question, and no read fails.
+///
+/// A store that is relied on therefore carries this mark, and only an
+/// operator writes it (`arm`): never a start, a deploy or a cycle. While the
+/// mark is missing a missing stop proves nothing, and neither service adds
+/// risk: nothing is opened or increased, and whatever makes a position smaller
+/// still goes out.
+/// A mark that cannot be read is no mark. Whoever reads it takes a failed
+/// read for a missing mark: never for an armed store, and never for a store
+/// that has failed, which would hold back closes too. A store that has
+/// failed shows in the reads beside it, the kill switch first.
+///
+/// The mark says that someone looked at the store, not that the store is
+/// complete: one brought back from a snapshot taken after it was armed still
+/// carries it.
+pub mod armed {
+    use super::{Result, StateError, Store};
+    use chrono::{DateTime, Utc};
+    use serde_json::{Value, json};
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    /// Where the mark is kept. It is written without an expiry.
+    pub const KEY: &str = "store:armed";
+    /// Whether what was read at `KEY` is the mark.
+    pub fn marked(read: Option<&Value>) -> bool {
+        read.is_some_and(|mark| mark["armed"] == true)
+    }
+    /// The mark, as it is written at `at`.
+    pub fn mark(at: DateTime<Utc>) -> Value {
+        json!({"armed":true,"at":at})
+    }
+    /// Whether a read of `KEY` found the mark. A read that failed found none.
+    pub fn found(read: &Result<Option<Value>>) -> bool {
+        read.as_ref().is_ok_and(|read| marked(read.as_ref()))
+    }
+    /// Whether the store carries the mark. An error is the read failing, for
+    /// a caller that wants to say so; it still stands for "no mark".
+    pub async fn read(store: &dyn Store) -> Result<bool> {
+        Ok(marked(store.get(KEY).await?.as_ref()))
+    }
+    /// Arms the store, unless it is armed already, and gives the mark that is
+    /// in force and whether this call wrote it. The mark of a store that is
+    /// armed is left as it is, so it keeps saying when that was done. Whatever
+    /// else the key holds is replaced, something that cannot be read too: if
+    /// it is the store that cannot be read, the write fails as well. The
+    /// caller holds whatever lock keeps two operators apart.
+    pub async fn arm(store: &dyn Store, at: DateTime<Utc>) -> Result<(Value, bool)> {
+        if let Ok(Some(held)) = store.get(KEY).await
+            && marked(Some(&held))
+        {
+            return Ok((held, false));
+        }
+        store.put(KEY, mark(at), 0).await?;
+        // Read back: the answer is what the store holds, not what was sent.
+        let held = store.get(KEY).await?.ok_or(StateError)?;
+        if !marked(Some(&held)) {
+            return Err(StateError);
+        }
+        Ok((held, true))
+    }
+
+    /// The shortest time between two lines saying that the store is not
+    /// armed, in seconds.
+    const NOTICE_EVERY: u64 = 50;
+    /// Says that the store is not armed, at most once in `NOTICE_EVERY`
+    /// however often that is found.
+    pub struct Notice {
+        /// One more than the second of the process's life in which the last
+        /// line was written, and zero until the first.
+        said: AtomicU64,
+    }
+    impl Default for Notice {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+    impl Notice {
+        pub const fn new() -> Self {
+            Self {
+                said: AtomicU64::new(0),
+            }
+        }
+        /// Whether a line is due at `second` of the process's life. Of
+        /// callers that ask at the same moment, one is told yes.
+        fn due(&self, second: u64) -> bool {
+            let said = self.said.load(Ordering::Relaxed);
+            let due = said == 0 || second.saturating_add(1).saturating_sub(said) >= NOTICE_EVERY;
+            due && self
+                .said
+                .compare_exchange(
+                    said,
+                    second.saturating_add(1),
+                    Ordering::Relaxed,
+                    Ordering::Relaxed,
+                )
+                .is_ok()
+        }
+        /// Writes the line if one is due. It names nothing of any account.
+        pub fn say(&self) {
+            static STARTED: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
+            let second = STARTED
+                .get_or_init(std::time::Instant::now)
+                .elapsed()
+                .as_secs();
+            if self.due(second) {
+                tracing::error!(
+                    error_code = "store_not_armed",
+                    "The store does not carry its mark: it may have lost its state. Nothing is opened or increased until an operator arms it; closing and reducing still work"
+                );
+            }
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use crate::state::MemoryStore;
+
+        #[test]
+        fn only_a_true_mark_is_the_mark() {
+            assert!(marked(Some(&mark(Utc::now()))));
+            assert!(marked(Some(&json!({"armed":true}))));
+            for other in [
+                json!({"armed":false}),
+                json!({"armed":"true"}),
+                json!({"armed":1}),
+                json!({}),
+                json!(true),
+                json!("armed"),
+                Value::Null,
+            ] {
+                assert!(!marked(Some(&other)), "{other}");
+            }
+            assert!(!marked(None));
+        }
+
+        #[tokio::test]
+        async fn arming_writes_the_mark_once_and_never_rewrites_it() {
+            let store = MemoryStore::empty();
+            assert!(!read(&store).await.unwrap());
+            let first: DateTime<Utc> = "2026-11-26T10:00:00Z".parse().unwrap();
+            let (written, new) = arm(&store, first).await.unwrap();
+            assert!(new);
+            assert_eq!(written, json!({"armed":true,"at":"2026-11-26T10:00:00Z"}));
+            assert!(read(&store).await.unwrap());
+            // Armed again later: nothing is written, and the mark still says
+            // when the store was armed.
+            let later = first + chrono::Duration::hours(3);
+            let (held, new) = arm(&store, later).await.unwrap();
+            assert!(!new);
+            assert_eq!(held, written);
+            assert_eq!(store.get(KEY).await.unwrap(), Some(written));
+            // Something else under the key is not a mark, and arming replaces it.
+            store.put(KEY, json!({"armed":false}), 0).await.unwrap();
+            assert!(!read(&store).await.unwrap());
+            let (held, new) = arm(&store, later).await.unwrap();
+            assert!(new);
+            assert_eq!(held["at"], "2026-11-26T13:00:00Z");
+        }
+
+        #[tokio::test]
+        async fn a_new_in_memory_store_is_armed_and_an_empty_one_is_not() {
+            assert!(read(&MemoryStore::default()).await.unwrap());
+            assert!(!read(&MemoryStore::empty()).await.unwrap());
+        }
+
+        #[test]
+        fn a_missing_mark_is_said_at_most_once_in_its_interval() {
+            let notice = Notice::new();
+            // Found for the first time in the process's first second.
+            assert!(notice.due(0));
+            for second in [0, 1, 20, 40, 49] {
+                assert!(!notice.due(second), "{second}");
+            }
+            // Found every 75 s, it is said every time.
+            assert!(notice.due(75));
+            assert!(!notice.due(76));
+            assert!(notice.due(150));
+            // Found every 25 s, it is said every second time.
+            let notice = Notice::new();
+            let said: Vec<u64> = (0..10)
+                .map(|step| step * 25)
+                .filter(|second| notice.due(*second))
+                .collect();
+            assert_eq!(said, [0, 50, 100, 150, 200]);
+        }
+    }
+}
 #[derive(Clone)]
 pub struct RedisStore {
     connection: redis::aio::ConnectionManager,
@@ -237,14 +430,17 @@ impl Store for RedisStore {
         for key in keys {
             command.arg(format!("bot:kv:{key}"));
         }
-        let texts = command
-            .query_async::<Vec<Option<String>>>(&mut self.connection.clone())
+        // Read as bytes and judged one by one: a value that is not even text
+        // must fail its own key, not the whole reply with every key in it.
+        let values = command
+            .query_async::<Vec<Option<Vec<u8>>>>(&mut self.connection.clone())
             .await;
-        match texts {
-            Ok(texts) if texts.len() == keys.len() => texts
+        match values {
+            Ok(values) if values.len() == keys.len() => values
                 .into_iter()
-                .map(|text| {
-                    text.map(|t| serde_json::from_str(&t))
+                .map(|value| {
+                    value
+                        .map(|bytes| serde_json::from_slice(&bytes))
                         .transpose()
                         .map_err(|_| StateError)
                 })
@@ -401,11 +597,34 @@ fn queue_keys(queue: &str) -> (String, String) {
     )
 }
 /// Offline replay and test store only. Production binaries require Redis.
-#[derive(Default, Clone)]
+///
+/// A new one is armed (see `armed`): it is made for one replay, rehearsal or
+/// test, and has no earlier state it could have lost. `empty` makes one
+/// without the mark, which is what a store that lost everything looks like.
+#[derive(Clone)]
 pub struct MemoryStore {
     values: Arc<Mutex<HashMap<String, Value>>>,
     leases: Arc<Mutex<HashMap<String, (String, std::time::Instant)>>>,
     nonces: Arc<Mutex<HashMap<String, u64>>>,
+}
+impl Default for MemoryStore {
+    fn default() -> Self {
+        let mark = (armed::KEY.to_owned(), armed::mark(chrono::Utc::now()));
+        Self {
+            values: Arc::new(Mutex::new(HashMap::from([mark]))),
+            ..Self::empty()
+        }
+    }
+}
+impl MemoryStore {
+    /// A store that holds nothing at all, the mark included.
+    pub fn empty() -> Self {
+        Self {
+            values: Arc::default(),
+            leases: Arc::default(),
+            nonces: Arc::default(),
+        }
+    }
 }
 #[async_trait]
 impl Store for MemoryStore {
@@ -686,7 +905,11 @@ pub(crate) mod stand_in {
             self.data.lock().unwrap().get(key.as_bytes()).cloned()
         }
         pub(crate) fn set_text(&self, key: &str, text: &str) {
-            let item = Item::Text(text.as_bytes().to_vec(), None);
+            self.set_bytes(key, text.as_bytes());
+        }
+        /// A string value of any bytes, text or not.
+        pub(crate) fn set_bytes(&self, key: &str, bytes: &[u8]) {
+            let item = Item::Text(bytes.to_vec(), None);
             self.data
                 .lock()
                 .unwrap()
@@ -1107,6 +1330,40 @@ mod tests {
         contract(Arc::new(MemoryStore::default()), "").await;
     }
 
+    /// The mark of an armed store, as Redis holds it: under its own key, with
+    /// no expiry, so it goes only when the store's state goes.
+    #[tokio::test]
+    async fn the_mark_is_kept_in_redis_without_an_expiry_and_goes_with_the_state() {
+        let redis = StandIn::start().await;
+        let store = redis.store().await;
+        // A Redis that holds nothing is not armed, and no read of it fails.
+        assert!(!armed::read(&store).await.unwrap());
+        let at = "2026-11-26T10:00:00Z".parse().unwrap();
+        redis.take_traffic();
+        let (mark, new) = armed::arm(&store, at).await.unwrap();
+        assert!(new);
+        let text = r#"{"armed":true,"at":"2026-11-26T10:00:00Z"}"#;
+        assert_eq!(mark, serde_json::from_str::<Value>(text).unwrap());
+        let written = &redis.take_traffic().commands[1];
+        assert_eq!(written, &["SET", "bot:kv:store:armed", text]);
+        let held = Item::Text(text.as_bytes().to_vec(), None);
+        assert_eq!(redis.item("bot:kv:store:armed"), Some(held));
+        assert!(armed::read(&store).await.unwrap());
+        // Something under the key that this service did not write cannot be
+        // read. That is no mark, and arming replaces it.
+        redis.set_text("bot:kv:store:armed", "armed");
+        assert!(armed::read(&store).await.is_err());
+        assert!(!armed::found(&store.get(armed::KEY).await));
+        let later = at + chrono::Duration::minutes(5);
+        let (mark, new) = armed::arm(&store, later).await.unwrap();
+        assert!(new);
+        assert_eq!(mark["at"], "2026-11-26T10:05:00Z");
+        assert!(armed::read(&store).await.unwrap());
+        // With the key gone, as it is when the state is, it is not armed.
+        store.delete(armed::KEY).await.unwrap();
+        assert!(!armed::read(&store).await.unwrap());
+    }
+
     /// Against a real Redis, only when `REDIS_TEST_URL` names a disposable one
     /// on this machine. Every key it touches starts with a fresh prefix.
     #[tokio::test]
@@ -1185,6 +1442,24 @@ mod tests {
             traffic.commands,
             [vec!["MGET", "bot:kv:a", "bot:kv:broken", "bot:kv:missing"]]
         );
+    }
+
+    /// A value that is not even text fails its own key and no other: a
+    /// damaged value must not make the values read beside it unreadable.
+    #[tokio::test]
+    async fn a_value_that_is_not_text_fails_its_own_key_and_no_other() {
+        let redis = StandIn::start().await;
+        let store = redis.store().await;
+        let stop = json!({"stopped":true});
+        store.put("guard", stop.clone(), 0).await.unwrap();
+        redis.set_bytes("bot:kv:store:armed", &[0xff, 0xfe, 0x00, 0x80]);
+        let keys = ["guard", "store:armed", "missing"].map(String::from);
+        let read = store.get_many(&keys).await;
+        assert_eq!(read[0].as_ref().unwrap(), &Some(stop));
+        assert!(read[1].is_err());
+        assert_eq!(read[2].as_ref().unwrap(), &None);
+        // Read on its own it fails the same way.
+        assert!(store.get("store:armed").await.is_err());
     }
 
     #[tokio::test]
