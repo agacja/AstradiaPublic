@@ -16,8 +16,12 @@ Suggested review order:
    refresh, account isolation, cleanup and transient-error handling; a renewal
    is recognised by the membership's end moving later, and a paid-up member is
    not looked up on every return to the page.
-4. `frontend/src/contracts.ts`: narrow output parsing and refusal to consume
-   extra internal evaluation fields.
+4. `frontend/src/contracts.ts`: an untrusted response is narrowed field by
+   field into one of two shapes, with no cast, and anything carrying an extra
+   field is refused, so internal evaluation data is never consumed.
+   `frontend/src/lib/hyperliquid-candles.ts` checks the fields the chart
+   reads in market data and bounds how long the request may take. `frontend/tsconfig.json` has the
+   compiler settings all of this is held to.
    `frontend/src/components/HyperliquidChart.tsx`: chart and WebSocket
    lifecycle. Each run of the chart effect owns a session that its history
    request, socket and reconnect timer check before acting, so a slow response
@@ -89,6 +93,8 @@ From the repo root:
 
 ```sh
 cd packages/social-store
+gofmt -l .
+go vet ./...
 go test -race ./...
 ```
 
@@ -111,6 +117,7 @@ responses, rejected inputs, and the contents of the offered source archive.
 cd packages/platform-core
 cargo fmt --check
 cargo clippy --locked --all-targets -- -D warnings
+cargo clippy --locked --lib -- -D warnings -D clippy::cast_possible_truncation -D clippy::cast_sign_loss -D clippy::cast_possible_wrap -D clippy::string_slice
 cargo test --locked
 ```
 

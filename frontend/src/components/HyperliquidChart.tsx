@@ -45,7 +45,7 @@ const INTERVALS = ['1m', '5m', '15m', '1h', '4h', '1d'] as const;
 // Light theme — the chart canvas is drawn, not styled by CSS, so its palette
 // lives here. Ink-on-paper: light surface, dark text, saturated-but-readable
 // marks (validated against a #eef3fb surface).
-// eslint-disable-next-line react-refresh/only-export-components -- shared palette consumed by RealTimeChart/CommodityRealTimeChart
+// eslint-disable-next-line react-refresh/only-export-components -- a shared palette, exported for other charts
 export const CHART_COLORS = {
   background: '#f4f7fc', // light blue paper
   gridLines: '#dbe4f1', // soft blue rules
@@ -242,7 +242,7 @@ function HyperliquidChartComponent({ symbol, height = 620, interval = '15m', lab
     setIsLoading(true);
     try {
       // Calculate start time based on interval (get ~500 candles)
-      const intervalMs = INTERVAL_TO_MS[selectedInterval] || INTERVAL_TO_MS['15m'];
+      const intervalMs = INTERVAL_TO_MS[selectedInterval] ?? 15 * 60 * 1000;
       const startTime = Date.now() - (500 * intervalMs);
 
       const data = await getCandles(symbol, selectedInterval as CandleInterval, startTime);
@@ -271,11 +271,11 @@ function HyperliquidChartComponent({ symbol, height = 620, interval = '15m', lab
       volumeSeriesRef.current.setData(volumes);
 
       // Set initial price
-      if (candles.length > 0) {
-        const lastCandle = candles[candles.length - 1];
+      const firstCandle = candles[0];
+      const lastCandle = candles[candles.length - 1];
+      if (firstCandle && lastCandle) {
         setCurrentPrice(lastCandle.close);
         if (candles.length > 1) {
-          const firstCandle = candles[0];
           setPriceChange(((lastCandle.close - firstCandle.open) / firstCandle.open) * 100);
         }
       }

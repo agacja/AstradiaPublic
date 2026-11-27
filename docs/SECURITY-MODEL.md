@@ -220,8 +220,9 @@ sequenceDiagram
 - The published Rust crates forbid unsafe code, deny `unwrap` and `expect`
   outside tests, and check integer overflow in release builds.
 - Rust dependencies are checked for published advisories, licenses and sources
-  (cargo-audit, cargo-deny), and Go modules for known vulnerabilities in the
-  code they call (govulncheck)
+  (cargo-audit, cargo-deny), Go modules for known vulnerabilities in the
+  code they call (govulncheck), and the frontend's locked packages for
+  advisories and valid registry signatures (`npm audit`)
   ([architecture, section 9](ARCHITECTURE.md#9-delivery-and-quality-gates)).
 
 ## Fail-closed properties and the tests that pin them
@@ -247,6 +248,14 @@ properties below are the ones whose code and tests are published.
 | The current signers produce the earlier signers' bytes, and a digest at or above the curve order still gets a valid signature | `signing::tests::action_signatures_are_the_bytes_ethers_produced`, `signing::tests::authorization_signatures_are_the_bytes_p256_0_13_produced`, `signing::tests::a_digest_at_or_above_the_order_still_gets_a_valid_signature` |
 | A Redis that stops answering fails the call instead of holding it forever | `state::timeout_tests::connecting_to_a_silent_server_fails_instead_of_hanging`, `state::timeout_tests::a_command_that_is_never_answered_fails_instead_of_hanging` |
 | A Redis that shut down is reached again within seconds of its return, by a store that was running and by one that was starting | `state::outage_tests::a_store_reads_again_within_seconds_of_the_servers_return`, `state::outage_tests::a_store_started_while_the_server_is_away_connects_within_seconds_of_its_return` |
+
+Two frontend modules written for this workspace read data from outside, and
+both check it where it enters:
+
+| Property | Test in `frontend/tests` |
+| --- | --- |
+| A signal summary with an extra field, a field of the wrong shape, or an unavailable result with any action but `WAIT` is refused, always with the same message, and what is returned is built from checked values only | `contracts.test.ts` |
+| A candle response that is not a list of candles, or has a price that is not a number, is refused before the chart reads it; the request carries no credential and fails when it is not answered in time | `hyperliquid-candles.test.ts` |
 
 ## Social consent
 

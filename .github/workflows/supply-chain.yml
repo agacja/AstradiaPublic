@@ -1,12 +1,13 @@
 name: Dependency advisories, licenses and sources
 # cargo-audit and cargo-deny on both Rust lock files, govulncheck on both Go
-# modules. The policies are deny.toml and .cargo/audit.toml at the repository
-# root. Runs when a lock file, a module file or a policy changes, and on demand.
+# modules, npm audit on the frontend lock file. The Rust policies are deny.toml
+# and .cargo/audit.toml at the repository root. Runs when a lock file, a module
+# file or a policy changes, and on demand.
 on:
   push:
-    paths: ['packages/platform-core/Cargo.lock', 'packages/platform-core/Cargo.toml', 'services/ephemeris/Cargo.lock', 'services/ephemeris/Cargo.toml', 'packages/social-store/go.mod', 'packages/social-store/go.sum', 'packages/go-primitives/go.mod', 'deny.toml', '.cargo/audit.toml', '.github/workflows/supply-chain.yml']
+    paths: ['packages/platform-core/Cargo.lock', 'packages/platform-core/Cargo.toml', 'services/ephemeris/Cargo.lock', 'services/ephemeris/Cargo.toml', 'packages/social-store/go.mod', 'packages/social-store/go.sum', 'packages/go-primitives/go.mod', 'frontend/package.json', 'frontend/package-lock.json', 'deny.toml', '.cargo/audit.toml', '.github/workflows/supply-chain.yml']
   pull_request:
-    paths: ['packages/platform-core/Cargo.lock', 'packages/platform-core/Cargo.toml', 'services/ephemeris/Cargo.lock', 'services/ephemeris/Cargo.toml', 'packages/social-store/go.mod', 'packages/social-store/go.sum', 'packages/go-primitives/go.mod', 'deny.toml', '.cargo/audit.toml', '.github/workflows/supply-chain.yml']
+    paths: ['packages/platform-core/Cargo.lock', 'packages/platform-core/Cargo.toml', 'services/ephemeris/Cargo.lock', 'services/ephemeris/Cargo.toml', 'packages/social-store/go.mod', 'packages/social-store/go.sum', 'packages/go-primitives/go.mod', 'frontend/package.json', 'frontend/package-lock.json', 'deny.toml', '.cargo/audit.toml', '.github/workflows/supply-chain.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -62,3 +63,26 @@ jobs:
       - name: govulncheck (go-primitives)
         working-directory: packages/go-primitives
         run: govulncheck ./...
+  npm:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      # Exactly the locked packages, and none of their install scripts.
+      - run: npm ci --ignore-scripts
+      # Fails on any published advisory against a locked package, whatever its
+      # severity, development tools included.
+      - run: npm audit
+      # Every installed package's registry signature must verify, and so must
+      # its provenance attestation where it has one.
+      - run: npm audit signatures

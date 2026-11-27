@@ -110,6 +110,27 @@ verified before use, and uncertain writes resolved before any retry. The
 [security model](docs/SECURITY-MODEL.md) covers identity, credential custody,
 payments and consent.
 
+## What CI enforces
+
+CI checks the rules below. All rows but one run on every push; the dependency
+checks run when a lock file, a manifest or the dependency policy changes, and
+on demand.
+
+| Area | Enforced |
+| --- | --- |
+| TypeScript | `strict` with `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noPropertyAccessFromIndexSignature`, `noImplicitOverride`, `noImplicitReturns`, `noFallthroughCasesInSwitch` and `erasableSyntaxOnly`, for the tests and the build configuration as well as the page |
+| Rust platform core | No `unsafe`. Outside tests: no `unwrap`, no `expect` without a written reason, no `panic`, `todo`, `unreachable` or process exit, no printing, no `let _` on a future, no float compared for equality, and no wildcard arm in a `match` on an enum (`Option` and `Result` are exempt from that lint). In library code no cast between integer types that can lose or wrap a value. Clippy warnings are errors, and release builds check integer overflow |
+| Rust astronomy service | No `unsafe`, no `unwrap` or `expect` outside tests, clippy warnings as errors, overflow checks in release builds, and a smoke test against the built service |
+| Go | `gofmt`, `go vet`, and the tests under the race detector, the social store's against a disposable PostgreSQL |
+| Dependencies | Lock files are required. Published advisories, licenses and sources for the Rust crates (cargo-audit, cargo-deny), known vulnerabilities in called code for the Go modules (govulncheck), advisories and registry signatures for the npm packages (`npm audit`) |
+| Publication | Every file is listed with its hash in a reviewed manifest, and the full history is scanned for secrets |
+
+Two things here are practice, not a CI rule. Every GitHub Action in the
+workflows is pinned to a commit. And the two modules written for this
+workspace that read outside data (`frontend/src/contracts.ts`,
+`frontend/src/lib/hyperliquid-candles.ts`) return only what they have checked,
+without asserting a type; their tests pin what they refuse.
+
 ## Publication boundary
 
 This repo starts with new Git history. It is not a fork or a mirror of the
@@ -124,8 +145,9 @@ credentials, environment files, and compiled private artifacts.
 reviewed manifest, rejects unapproved files and source imports, and detects
 common secret formats. CI repeats these checks and runs a dedicated Gitleaks
 scan, and a second workflow checks the Rust dependencies for published
-advisories, licenses and sources (cargo-audit, cargo-deny) and the Go modules
-for known vulnerabilities in the code they call (govulncheck). Install the local pre-push check with:
+advisories, licenses and sources (cargo-audit, cargo-deny), the Go modules
+for known vulnerabilities in the code they call (govulncheck), and the npm
+packages for advisories and valid registry signatures (`npm audit`). Install the local pre-push check with:
 
 ```sh
 git config core.hooksPath .githooks

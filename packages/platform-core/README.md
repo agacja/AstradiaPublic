@@ -26,6 +26,7 @@ on its own, which is the practical proof of that separation.
 ```sh
 cargo fmt --check
 cargo clippy --locked --all-targets -- -D warnings
+cargo clippy --locked --lib -- -D warnings -D clippy::cast_possible_truncation -D clippy::cast_sign_loss -D clippy::cast_possible_wrap -D clippy::string_slice
 cargo test --locked
 ```
 
@@ -36,9 +37,17 @@ local port, and the signing tests use fixed vectors and a stand-in provider on a
 local port. With `REDIS_TEST_URL` naming a disposable Redis on this machine,
 the same store checks also run against a real one.
 
-The crate forbids unsafe code and denies `unwrap` and `expect` outside tests
-(`clippy.toml` allows them there); an invariant that cannot fail carries an
-`#[expect]` with its reason. Release builds check integer overflow.
+The crate forbids unsafe code. Outside tests it denies `unwrap`, `expect`,
+`panic`, `todo`, `unreachable` and process exit (`clippy.toml` allows the
+first three in tests), so none of these can turn a failure into a panic or an
+exit; an invariant that cannot fail carries an `#[expect]` with its reason.
+Indexing, slicing and arithmetic are not under a lint; release builds trap
+overflow. It also denies printing (output goes through `tracing`), `let _` on
+a future, a float compared for equality and a wildcard arm in a `match` on an
+enum (`Option` and `Result` are exempt from that lint). These rules are in
+`Cargo.toml` under `[lints]`. The second clippy line above adds two for
+library code, which its tests are excused from: no cast between integer types
+that can lose or wrap a value, and no string cut at a byte index.
 
 `tests/signing_parity.rs` checks the hashing and signing path against golden
 vectors: the same action must produce the same hash and the same `r`, `s`, `v`.

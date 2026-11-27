@@ -396,10 +396,10 @@ flowchart LR
         B1 --> B2 --> B3 --> B4
     end
 
-    FE["frontend<br/>clean install, tests,<br/>type-check and build"]
-    SO["social-store<br/>race tests against<br/>disposable PostgreSQL"]
+    FE["frontend<br/>clean install, type-checked tests,<br/>strict type-check and build"]
+    SO["social-store<br/>gofmt, vet, race tests against<br/>disposable PostgreSQL"]
     GP["go-primitives<br/>gofmt, vet, race tests"]
-    PC["platform-core<br/>fmt, clippy with warnings denied,<br/>locked tests"]
+    PC["platform-core<br/>fmt, clippy with warnings denied,<br/>stricter rules for library code,<br/>locked tests"]
     AS["astronomy<br/>fmt, locked build, clippy,<br/>live smoke test"]
 
     PUSH --> B1
@@ -415,9 +415,11 @@ flowchart LR
 
 A second workflow runs when a lock file, a module file or the dependency
 policy changes: cargo-audit and cargo-deny over both Rust lock files
-(advisories, licenses, sources, bans) and govulncheck over both Go modules
-(known vulnerabilities in the code they call). Its exceptions are listed with
-their reasons in `deny.toml` and `.cargo/audit.toml`.
+(advisories, licenses, sources, bans), govulncheck over both Go modules
+(known vulnerabilities in the code they call), and `npm audit` over the
+frontend's locked packages (advisories, and the registry signature of every
+installed package). The Rust exceptions are listed with their reasons in
+`deny.toml` and `.cargo/audit.toml`; there are none for Go or npm.
 
 The publication procedure itself, and what is deliberately excluded, is in
 [PUBLIC-BOUNDARY.md](PUBLIC-BOUNDARY.md).

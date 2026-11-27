@@ -72,7 +72,7 @@ export function signIndex(sign: string): number {
 
 export function signPath(sign: string): string {
   const i = signIndex(sign);
-  return i >= 0 ? SIGN_PATHS[i] : '';
+  return i >= 0 ? (SIGN_PATHS[i] ?? '') : '';
 }
 
 interface GlyphProps {

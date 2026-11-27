@@ -15,6 +15,13 @@ const lineOf = (data: AstroCartographyData, planet: string, type: AstroLine['lin
   data.lines.find(l => l.planet === planet && l.lineType === type);
 const byPlanet = (planet: string, type: AstroLine['lineType']) => lineOf(chart, planet, type);
 const wrap = (lon: number) => ((((lon + 180) % 360) + 360) % 360) - 180;
+/** The longitude a meridian line stands at: every point of an MC or IC line has it. */
+function meridian(line: AstroLine): number {
+  const longitude = line.points[0]?.longitude;
+  assert.ok(longitude !== undefined, `${line.planet} ${line.lineType} has no points`);
+  assert.ok(line.points.every(p => p.longitude === longitude), `${line.planet} ${line.lineType} is a meridian`);
+  return longitude;
+}
 
 // Every tenth day of thirty years: 1,096 skies, in which a planet stands within
 // half a degree of the celestial equator more than a hundred times.
@@ -59,9 +66,7 @@ test('every body has a meridian pair exactly half a turn apart', () => {
     const mc = byPlanet(planet, 'MC');
     const ic = byPlanet(planet, 'IC');
     assert.ok(mc && ic, planet);
-    const mcLon = mc.points[0].longitude;
-    assert.ok(mc.points.every(p => p.longitude === mcLon), `${planet} MC is a meridian`);
-    assert.ok(Math.abs(wrap(ic.points[0].longitude - mcLon - 180)) < 1e-9, `${planet} IC opposes MC`);
+    assert.ok(Math.abs(wrap(meridian(ic) - meridian(mc) - 180)) < 1e-9, `${planet} IC opposes MC`);
   }
 });
 
@@ -69,7 +74,7 @@ test('the Sun culminates near Greenwich at Greenwich noon', () => {
   // 2000-01-01 12:00 UTC: the equation of time is about -3 minutes, under one degree.
   const mc = byPlanet('Sun', 'MC');
   assert.ok(mc);
-  assert.ok(Math.abs(mc.points[0].longitude) < 1.5, `Sun MC at ${mc.points[0].longitude}`);
+  assert.ok(Math.abs(meridian(mc)) < 1.5, `Sun MC at ${meridian(mc)}`);
 });
 
 test('every planet has all four of its lines, also when it stands near the celestial equator', () => {
@@ -187,7 +192,7 @@ test('the sky the lines were drawn from comes back with them', () => {
     // ascension: right ascension less Greenwich's sidereal time.
     const mc = byPlanet(planet.name, 'MC');
     assert.ok(mc, planet.name);
-    assert.ok(Math.abs(wrap(mc.points[0].longitude - (planet.ra - gmst))) < 1e-9, `${planet.name} MC`);
+    assert.ok(Math.abs(wrap(meridian(mc) - (planet.ra - gmst))) < 1e-9, `${planet.name} MC`);
   }
   // Ten days after the December solstice the Sun is ten degrees into Capricorn and 23 degrees south.
   const sun = planets.find(p => p.name === 'Sun');

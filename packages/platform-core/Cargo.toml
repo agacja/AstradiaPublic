@@ -45,12 +45,43 @@ p256_013 = { package = "p256", version = "0.13", features = ["ecdsa", "pkcs8"] }
 
 [lints.rust]
 unsafe_code = "forbid"
+# Identifiers are ASCII, which rules out look-alike letters from other scripts.
+non_ascii_idents = "forbid"
+rust_2018_idioms = { level = "deny", priority = -1 }
+trivial_casts = "deny"
+trivial_numeric_casts = "deny"
 [lints.clippy]
 await_holding_lock = "deny"
 # No unwrap or expect outside tests (clippy.toml allows them in tests). A true
 # invariant takes #[expect(clippy::expect_used, reason = "...")].
 unwrap_used = "deny"
 expect_used = "deny"
+unwrap_in_result = "deny"
+get_unwrap = "deny"
+# None of the macros and calls that end the process or leave work unwritten
+# (clippy.toml lets a test panic).
+panic = "deny"
+todo = "deny"
+unimplemented = "deny"
+unreachable = "deny"
+exit = "deny"
+mem_forget = "deny"
+# Output goes through tracing, where what may be logged is decided once.
+dbg_macro = "deny"
+print_stdout = "deny"
+print_stderr = "deny"
+# No future is discarded with `let _`, which would drop it unpolled, and none
+# is over clippy's size limit for a future.
+let_underscore_future = "deny"
+large_futures = "deny"
+# Numbers: a widening conversion says so with From, and floats are neither
+# compared for equality nor written with digits they cannot hold.
+cast_lossless = "deny"
+float_cmp = "deny"
+lossy_float_literal = "deny"
+# No wildcard arm in a match on an enum, so a new variant is a compile error
+# (the lint exempts Option and Result).
+wildcard_enum_match_arm = "deny"
 
 [profile.release]
 # Integer overflow panics in release as it does in debug, instead of wrapping.

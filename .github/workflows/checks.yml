@@ -60,6 +60,10 @@ jobs:
         with:
           go-version-file: packages/social-store/go.mod
           cache-dependency-path: packages/social-store/go.sum
+      - run: test -z "$(gofmt -l .)"
+        working-directory: packages/social-store
+      - run: go vet ./...
+        working-directory: packages/social-store
       - run: go test -race ./...
         working-directory: packages/social-store
         env:
@@ -110,4 +114,7 @@ jobs:
       - run: rustup toolchain install 1.94.1 --profile minimal --component clippy,rustfmt && rustup default 1.94.1
       - run: cargo fmt --manifest-path packages/platform-core/Cargo.toml --check
       - run: cargo clippy --locked --manifest-path packages/platform-core/Cargo.toml --all-targets -- -D warnings
+      # Library code is held to more than its tests are: no integer cast that
+      # can lose or wrap a value, and no string cut at a byte index.
+      - run: cargo clippy --locked --manifest-path packages/platform-core/Cargo.toml --lib -- -D warnings -D clippy::cast_possible_truncation -D clippy::cast_sign_loss -D clippy::cast_possible_wrap -D clippy::string_slice
       - run: cargo test --locked --manifest-path packages/platform-core/Cargo.toml
