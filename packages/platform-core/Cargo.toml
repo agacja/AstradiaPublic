@@ -36,6 +36,9 @@ uuid = { version = "1", features = ["v4"] }
 # tests.
 axum = "0.8"
 tokio = { version = "1", features = ["net", "io-util", "test-util"] }
+# Stops the Redis stand-in's listener and connections when a test takes the
+# server away.
+tokio-util = "0.7"
 # The signers the code used before, as references in src/signing.rs's tests.
 ethers-signers = "2"
 p256_013 = { package = "p256", version = "0.13", features = ["ecdsa", "pkcs8"] }

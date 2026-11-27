@@ -35,9 +35,24 @@ export interface AstroLine {
   points: { latitude: number; longitude: number }[];
 }
 
+/** Where a planet stood on the sky: right ascension, declination and zodiac (ecliptic) longitude, in degrees. */
+export interface SkyPlanet {
+  name: string;
+  ra: number;
+  dec: number;
+  lon: number;
+}
+
+/** The sky the lines are drawn from: the planets and Greenwich sidereal time (degrees). */
+export interface Sky {
+  gmst: number;
+  planets: SkyPlanet[];
+}
+
 export interface AstroCartographyData {
   lines: AstroLine[];
   birthLocation: { latitude: number; longitude: number };
+  sky: Sky;
 }
 
 interface PlanetEquatorial {
@@ -253,6 +268,7 @@ export function calculateAstrocartography(
   return {
     lines,
     birthLocation: { latitude: birthLat, longitude: birthLon },
+    sky: { gmst, planets: planets.map(({ name, ra, dec, eclLon }) => ({ name, ra, dec, lon: eclLon })) },
   };
 }
 

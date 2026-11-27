@@ -1,5 +1,5 @@
-/** Free access includes personal discovery, backtest research and social features. */
-const FREE_TABS = new Set(['market', 'personal', 'kabbalah', 'backtest', 'dashboard', 'mycalendar']);
+/** Free access includes personal discovery (the astro map and tarot too), backtest research and social features. */
+const FREE_TABS = new Set(['market', 'personal', 'kabbalah', 'astromap', 'tarot', 'backtest', 'dashboard', 'mycalendar']);
 
 export function isFreeTab(tab: string): boolean {
   return FREE_TABS.has(tab);

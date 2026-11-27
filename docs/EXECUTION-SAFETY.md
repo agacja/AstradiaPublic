@@ -182,7 +182,9 @@ rehearsal unhealthy. It repeats periodically while it runs.
 
 - A global stop switch lives in the same durable store the worker reads before
   every action. It is a stored fact, not a signal to a process, so it holds
-  across restarts and deploys.
+  across restarts and deploys. It is written to the database first, which is
+  the record: a stop the database holds and the store lacks is put back
+  before the worker is next given its accounts, and only a reset removes one.
 - An empty store is not an all-clear. A store that came back empty (a lost
   volume, a flush, a restore from before the state was written) would answer
   "nothing is stopped" to every question, so the store carries a mark that

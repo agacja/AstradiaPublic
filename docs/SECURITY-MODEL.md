@@ -246,6 +246,7 @@ properties below are the ones whose code and tests are published.
 | Callers adding to one counter at once each get a sum of their own, so a limit kept in it cannot be raced past; a new count gets its expiry in the same step | `state::tests::the_in_memory_store_keeps_the_contract`, `state::tests::the_real_redis_checks_hold_on_the_stand_in`, `state::tests::a_count_is_created_with_its_expiry_in_the_same_step` |
 | The current signers produce the earlier signers' bytes, and a digest at or above the curve order still gets a valid signature | `signing::tests::action_signatures_are_the_bytes_ethers_produced`, `signing::tests::authorization_signatures_are_the_bytes_p256_0_13_produced`, `signing::tests::a_digest_at_or_above_the_order_still_gets_a_valid_signature` |
 | A Redis that stops answering fails the call instead of holding it forever | `state::timeout_tests::connecting_to_a_silent_server_fails_instead_of_hanging`, `state::timeout_tests::a_command_that_is_never_answered_fails_instead_of_hanging` |
+| A Redis that shut down is reached again within seconds of its return, by a store that was running and by one that was starting | `state::outage_tests::a_store_reads_again_within_seconds_of_the_servers_return`, `state::outage_tests::a_store_started_while_the_server_is_away_connects_within_seconds_of_its_return` |
 
 ## Social consent
 

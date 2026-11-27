@@ -162,10 +162,10 @@ pub async fn write(s: &dyn Store, key: &str, value: &impl Serialize, ttl: u64) -
 }
 /// The mark of a store whose state is relied on.
 ///
-/// What holds trading back is kept in the store and nowhere else, the global
-/// stop first. A key that is missing reads as "not set". So a store that has
-/// lost its state (a lost volume, a flush, a restore from before the state was
-/// written) answers "nothing is stopped" to every question, and no read fails.
+/// What holds trading back is read from the store, the global stop first. A
+/// key that is missing reads as "not set". So a store that has lost its state
+/// (a lost volume, a flush, a restore from before the state was written)
+/// answers "nothing is stopped" to every question, and no read fails.
 ///
 /// A store that is relied on therefore carries this mark, and only an
 /// operator writes it (`arm`): never a start, a deploy or a cycle. While the
@@ -361,10 +361,23 @@ pub struct RedisStore {
 /// wait on this connection, and the library's default is to wait forever.
 const RESPONSE_TIMEOUT: Duration = Duration::from_secs(5);
 const CONNECTION_TIMEOUT: Duration = Duration::from_secs(5);
+/// The longest pause between two attempts to connect, in milliseconds, before
+/// the library's jitter, which can double it. Left to itself redis 0.29 pauses
+/// 1.5 s after the first failed attempt and 60 to 120 s after every later one
+/// (117 s after the second), and every command waits for the connection: a
+/// Redis that is away for longer than that first pause keeps its client out
+/// for two minutes, however soon it returns.
+const RECONNECT_PAUSE_MS: u64 = 1_000;
+/// How many more attempts follow one that failed. A start that finds Redis
+/// refusing still waits about as long as it did before the pauses were
+/// shortened: seven and a half minutes (it was eight).
+const RECONNECT_ATTEMPTS: usize = 300;
 fn connection_config(response: Duration, connection: Duration) -> ConnectionManagerConfig {
     ConnectionManagerConfig::new()
         .set_response_timeout(response)
         .set_connection_timeout(connection)
+        .set_max_delay(RECONNECT_PAUSE_MS)
+        .set_number_of_retries(RECONNECT_ATTEMPTS)
 }
 impl RedisStore {
     pub async fn connect(url: &SecretString) -> Result<Self> {
@@ -856,6 +869,7 @@ pub(crate) mod stand_in {
     use super::*;
     use std::collections::VecDeque;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio_util::sync::CancellationToken;
 
     #[derive(Clone, Debug, PartialEq)]
     pub(crate) enum Item {
@@ -878,22 +892,61 @@ pub(crate) mod stand_in {
     }
     pub(crate) struct StandIn {
         pub(crate) url: SecretString,
+        address: std::net::SocketAddr,
         data: Data,
         traffic: Arc<std::sync::Mutex<Traffic>>,
+        /// Stops the listener and closes every connection it accepted.
+        listening: std::sync::Mutex<Option<(CancellationToken, tokio::task::JoinHandle<()>)>>,
     }
     impl StandIn {
         pub(crate) async fn start() -> Self {
             let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-            let url = format!("redis://{}", listener.local_addr().unwrap()).into();
-            let data: Data = Arc::default();
-            let traffic: Arc<std::sync::Mutex<Traffic>> = Arc::default();
-            let (shared, seen) = (data.clone(), traffic.clone());
-            tokio::spawn(async move {
-                while let Ok((socket, _)) = listener.accept().await {
-                    tokio::spawn(serve(socket, shared.clone(), seen.clone()));
+            let address = listener.local_addr().unwrap();
+            let server = Self {
+                url: format!("redis://{address}").into(),
+                address,
+                data: Arc::default(),
+                traffic: Arc::default(),
+                listening: std::sync::Mutex::default(),
+            };
+            server.listen(listener);
+            server
+        }
+        fn listen(&self, listener: tokio::net::TcpListener) {
+            let stop = CancellationToken::new();
+            let (data, traffic, stopped) = (self.data.clone(), self.traffic.clone(), stop.clone());
+            let accepting = tokio::spawn(async move {
+                loop {
+                    let accepted = tokio::select! {
+                        biased;
+                        _ = stopped.cancelled() => break,
+                        accepted = listener.accept() => accepted,
+                    };
+                    let Ok((socket, _)) = accepted else { break };
+                    let (data, traffic, stopped) = (data.clone(), traffic.clone(), stopped.clone());
+                    tokio::spawn(async move {
+                        tokio::select! {
+                            biased;
+                            _ = stopped.cancelled() => {}
+                            _ = serve(socket, data, traffic) => {}
+                        }
+                    });
                 }
             });
-            Self { url, data, traffic }
+            *self.listening.lock().unwrap() = Some((stop, accepting));
+        }
+        /// Takes the server away as a shutdown does: nothing listens at its
+        /// address any more, and every open connection is closed.
+        pub(crate) async fn take_away(&self) {
+            let listening = self.listening.lock().unwrap().take();
+            let (stop, accepting) = listening.unwrap();
+            stop.cancel();
+            accepting.await.unwrap();
+        }
+        /// Brings the server back at the same address, with what it held.
+        pub(crate) async fn bring_back(&self) {
+            let listener = tokio::net::TcpListener::bind(self.address).await.unwrap();
+            self.listen(listener);
         }
         pub(crate) async fn store(&self) -> RedisStore {
             RedisStore::connect(&self.url).await.unwrap()
@@ -1609,6 +1662,65 @@ mod tests {
     }
 }
 
+/// What the store does when Redis goes away and comes back. Left to itself
+/// the client library pauses 117 s before its third attempt to connect, and
+/// every command waits for that: an absence longer than its first pause
+/// keeps the client out for two minutes.
+#[cfg(test)]
+mod outage_tests {
+    use super::{stand_in::StandIn, *};
+    use serde_json::json;
+    use tokio::time::{Instant, sleep, timeout};
+
+    /// The store's settings with the waits shortened. The pauses between
+    /// attempts to connect are the ones `connect` uses.
+    fn quick() -> ConnectionManagerConfig {
+        let limit = Duration::from_millis(300);
+        connection_config(limit, limit)
+    }
+    /// Away for longer than the first two attempts to connect, after which
+    /// the library, left to itself, pauses for two minutes.
+    const AWAY: Duration = Duration::from_millis(2_500);
+    /// How soon after the return Redis must be reached again: a pause of two
+    /// seconds at most, then one attempt.
+    const SOON: Duration = Duration::from_secs(3);
+
+    #[tokio::test]
+    async fn a_store_reads_again_within_seconds_of_the_servers_return() {
+        let redis = StandIn::start().await;
+        let store = RedisStore::connect_with(&redis.url, quick()).await.unwrap();
+        store.put("kept", json!(1), 0).await.unwrap();
+        redis.take_away().await;
+        // The first command finds the connection closed: it fails, and the
+        // library starts to connect again.
+        let first = timeout(SOON, store.get("kept")).await;
+        assert!(matches!(first, Ok(Err(_))));
+        sleep(AWAY).await;
+        redis.bring_back().await;
+        let back = Instant::now();
+        let read = timeout(SOON, store.get("kept")).await;
+        let read = read.expect("not read again within 3 s of the return");
+        assert_eq!(read.unwrap(), Some(json!(1)));
+        assert!(back.elapsed() < SOON);
+    }
+
+    #[tokio::test]
+    async fn a_store_started_while_the_server_is_away_connects_within_seconds_of_its_return() {
+        let redis = StandIn::start().await;
+        redis.store().await.put("kept", json!(1), 0).await.unwrap();
+        redis.take_away().await;
+        let url = redis.url.clone();
+        let connecting = tokio::spawn(async move { RedisStore::connect_with(&url, quick()).await });
+        sleep(AWAY).await;
+        assert!(!connecting.is_finished());
+        redis.bring_back().await;
+        let store = timeout(SOON, connecting).await;
+        let store = store.expect("not connected within 3 s of the return");
+        let store = store.unwrap().unwrap();
+        assert_eq!(store.get("kept").await.unwrap(), Some(json!(1)));
+    }
+}
+
 #[cfg(test)]
 mod timeout_tests {
     use super::*;
@@ -1659,7 +1771,7 @@ mod timeout_tests {
         let store = RedisStore::connect_with(&url, short()).await.unwrap();
         let started = std::time::Instant::now();
         assert!(store.get("anything").await.is_err());
-        assert!(store.lease("worker", "owner", 60_000).await.is_err());
+        assert!(store.lease("held", "owner", 5_000).await.is_err());
         assert!(started.elapsed() < Duration::from_secs(3));
     }
 }

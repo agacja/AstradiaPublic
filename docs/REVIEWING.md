@@ -30,7 +30,8 @@ Suggested review order:
    the demo still makes no network calls; `docs/AUDIO-BRIEFINGS.md` describes
    the server side of the second one.
    `frontend/src/utils/astrocartography.ts`: the spherical geometry behind the
-   map lines, with a test of its invariants.
+   map lines and the sky positions they are drawn from, with a test of its
+   invariants.
 5. `packages/social-store/social.go`: parameterized queries, relationship
    visibility and persisted consent; note the required calling-layer authorization.
    Requests are serialized per pair and per sender with transaction-scoped
@@ -48,7 +49,10 @@ Suggested review order:
 7. `packages/platform-core/src/state.rs` and `tests/state.rs`: atomic leases and
    nonces, the guard that releases on drop, and Redis calls that fail instead of
    waiting forever; batched reads, an atomic counter and queues keyed by id,
-   checked against a Redis stand-in that answers the real wire protocol; and
+   checked against a Redis stand-in that answers the real wire protocol; a
+   store that reaches Redis again within seconds of its return from a
+   shutdown (`outage_tests` take the stand-in away as a shutdown does and
+   bring it back at the same address); and
    the store mark (`armed`), without which a store that came back empty would
    look like one where nothing is stopped.
    `packages/platform-core/src/flight.rs`: request coalescing,

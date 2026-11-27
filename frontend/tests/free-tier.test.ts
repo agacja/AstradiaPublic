@@ -4,8 +4,8 @@ import { isFreeTab, canUseWidget } from '../src/utils/feature-access.js';
 import { getChartOwner, syncChartOwner, STORAGE_KEY_BIRTH_DATA, STORAGE_KEY_NATAL_CHART } from '../src/utils/birthData.js';
 
 test('all requested personal and social entry points are free', () => {
-  for (const tab of ['market', 'personal', 'kabbalah', 'backtest', 'dashboard', 'mycalendar']) assert.equal(isFreeTab(tab), true, tab);
-  for (const tab of ['crypto', 'commodities', 'comparison', 'custom', 'clanker', 'manual-trade', 'astromap', 'upgrade', 'unknown']) assert.equal(isFreeTab(tab), false, tab);
+  for (const tab of ['market', 'personal', 'kabbalah', 'astromap', 'tarot', 'backtest', 'dashboard', 'mycalendar']) assert.equal(isFreeTab(tab), true, tab);
+  for (const tab of ['crypto', 'commodities', 'comparison', 'custom', 'clanker', 'manual-trade', 'astromap-live', 'upgrade', 'unknown']) assert.equal(isFreeTab(tab), false, tab);
 });
 
 test('old paid dashboard preferences cannot surface asset or PnL widgets after expiry', () => {

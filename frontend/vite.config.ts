@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [
-    // The product build uses this same guard: a browser module may never
+    // The product build uses a guard like this one: a browser module may never
     // resolve into a server directory, and the bundle is checked again after
     // it is generated.
     {
@@ -26,5 +26,9 @@ export default defineConfig({
     react(),
   ],
   build: { sourcemap: false },
+  // The page has one entry. Left to pick by itself, the dev server takes every
+  // .html in the project for an entry when it scans for the packages to
+  // prepare, and gives the scan up if the guard above refuses one of them.
+  optimizeDeps: { entries: ['index.html'] },
   server: { host: '127.0.0.1', strictPort: true },
 });

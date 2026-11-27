@@ -37,6 +37,28 @@ test('horizon curves stay on the map and are ordered for drawing', () => {
   }
 });
 
+test('the sky the lines were drawn from comes back with them', () => {
+  const { gmst, planets } = chart.sky;
+  // 2000-01-01 12:00 UTC is Julian day 2451545.0, where the formula's constant term is all that is left.
+  assert.ok(Math.abs(gmst - 280.46061837) < 1e-9, `sidereal time ${gmst}`);
+  assert.deepEqual(planets.map(p => p.name), ['Sun', 'Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune', 'Pluto']);
+  for (const planet of planets) {
+    assert.ok(planet.ra >= 0 && planet.ra < 360, `${planet.name} right ascension`);
+    assert.ok(Math.abs(planet.dec) <= 90, `${planet.name} declination`);
+    assert.ok(planet.lon >= 0 && planet.lon < 360, `${planet.name} longitude`);
+    // A meridian line stands at the longitude where local sidereal time equals the planet's right
+    // ascension: right ascension less Greenwich's sidereal time.
+    const mc = byPlanet(planet.name, 'MC');
+    assert.ok(mc, planet.name);
+    assert.ok(Math.abs(wrap(mc.points[0].longitude - (planet.ra - gmst))) < 1e-9, `${planet.name} MC`);
+  }
+  // Ten days after the December solstice the Sun is ten degrees into Capricorn and 23 degrees south.
+  const sun = planets.find(p => p.name === 'Sun');
+  assert.ok(sun);
+  assert.ok(Math.abs(sun.lon - 280.4) < 0.5, `Sun longitude ${sun.lon}`);
+  assert.ok(Math.abs(sun.dec + 23.0) < 0.2, `Sun declination ${sun.dec}`);
+});
+
 test('the birth location is echoed and labels are stable', () => {
   assert.deepEqual(chart.birthLocation, { latitude: 51.5074, longitude: -0.1278 });
   assert.equal(getLineLabel('MC'), 'Midheaven');
