@@ -26,6 +26,8 @@ function getJulianDay(date: Date): number {
 const DEG = Math.PI / 180;
 const RAD = 180 / Math.PI;
 const OBLIQUITY = 23.4393 * DEG; // Obliquity of ecliptic (J2000)
+const HORIZON_STEP = 1; // degrees along an ASC/DSC curve between two of its points (about 111 km)
+const HORIZON_LATITUDE = 75; // ASC/DSC curves are drawn between these latitudes, north and south
 
 export interface AstroLine {
   planet: string;
@@ -89,6 +91,23 @@ function normalizeLon(a: number): number {
   if (a > 180) a -= 360;
   if (a < -180) a += 360;
   return a;
+}
+
+// Add the next point of a curve. Where the curve crosses the antimeridian
+// (longitude ±180), it first gets a point on each side of it, on the straight
+// piece between its two neighbours, so a map can cut the curve there without
+// leaving a gap.
+function addCurvePoint(points: AstroLine['points'], latitude: number, longitude: number): void {
+  const previous = points[points.length - 1];
+  if (previous && Math.abs(longitude - previous.longitude) > 180) {
+    const edge = previous.longitude < 0 ? -180 : 180;
+    const before = Math.abs(edge - previous.longitude);
+    const after = Math.abs(-edge - longitude);
+    const share = before + after > 0 ? before / (before + after) : 0;
+    const crossingLat = previous.latitude + (latitude - previous.latitude) * share;
+    points.push({ latitude: crossingLat, longitude: edge }, { latitude: crossingLat, longitude: -edge });
+  }
+  points.push({ latitude, longitude });
 }
 
 // Get equatorial coordinates (RA, Dec) from ecliptic longitude
@@ -168,7 +187,6 @@ export function calculateAstrocartography(
   const gmst = getGMST(jd);
   const planets = getPlanetPositions(birthDate);
   const lines: AstroLine[] = [];
-  const step = 2; // degrees per step for ASC/DSC curves
 
   for (const planet of planets) {
     // ── MC Line (vertical) ──
@@ -202,67 +220,50 @@ export function calculateAstrocartography(
     });
 
     // ── ASC and DSC Lines (curves) ──
+    // The planet is on the horizon along one great circle: every place a
+    // quarter turn from the place it stands over (latitude = its declination,
+    // on its MC line). Walk that circle in equal steps, by the bearing from
+    // that place: from due south of it, through due east and west, to due
+    // north. Each bearing gives one latitude, and the hour angle H at which
+    // the planet sets there (cos H = -tan(lat) * tan(Dec)); it rises at -H.
+    // Stepping longitude instead loses the lines of a planet near the
+    // celestial equator, whose circle runs almost along the two meridians 90°
+    // either side of its MC line; stepping latitude leaves a gap where the
+    // two curves turn and meet, at latitude 90° minus the declination.
     const ascPoints: { latitude: number; longitude: number }[] = [];
     const dscPoints: { latitude: number; longitude: number }[] = [];
     const decRad = planet.dec * DEG;
 
-    // Skip if declination is exactly 0 (line would be on equator)
-    if (Math.abs(planet.dec) < 0.001) {
-      // Planet with 0 declination rises/sets on equator everywhere
-      for (let lon = -180; lon <= 180; lon += step) {
-        ascPoints.push({ latitude: 0, longitude: lon });
-        dscPoints.push({ latitude: 0, longitude: lon });
-      }
-    } else {
-      for (let geoLon = -180; geoLon <= 180; geoLon += step) {
-        // Local Sidereal Time at this longitude
-        const lst = normalizeAngle(gmst + geoLon);
-        // Hour angle in degrees
-        const H = normalizeAngle(lst - planet.ra);
-        const hRad = H * DEG;
+    for (let bearing = 180; bearing >= 0; bearing -= HORIZON_STEP) {
+      const bearingRad = bearing * DEG;
+      const geoLat = Math.asin(Math.cos(bearingRad) * Math.cos(decRad)) * RAD;
 
-        // Solve for latitude where altitude = 0
-        // tan(lat) = -cos(H) / tan(Dec)
-        const tanDec = Math.tan(decRad);
-        if (Math.abs(tanDec) < 0.0001) continue;
+      // Skip extreme latitudes
+      if (Math.abs(geoLat) > HORIZON_LATITUDE) continue;
 
-        const geoLat = Math.atan(-Math.cos(hRad) / tanDec) * RAD;
-
-        // Skip extreme latitudes
-        if (Math.abs(geoLat) > 75) continue;
-
-        // Determine if rising (ASC) or setting (DSC) based on hour angle
-        // H in (0, 180) = setting (DSC), H in (180, 360) = rising (ASC)
-        const sinH = Math.sin(hRad);
-        if (sinH < 0) {
-          // Rising (eastern horizon) = ASC
-          ascPoints.push({ latitude: geoLat, longitude: geoLon });
-        } else {
-          // Setting (western horizon) = DSC
-          dscPoints.push({ latitude: geoLat, longitude: geoLon });
-        }
-      }
+      const H = Math.atan2(Math.sin(bearingRad), -Math.cos(bearingRad) * Math.sin(decRad)) * RAD;
+      // Rising (eastern horizon) = ASC, west of the MC line
+      addCurvePoint(ascPoints, geoLat, normalizeLon(mcLon - H));
+      // Setting (western horizon) = DSC, east of the MC line
+      addCurvePoint(dscPoints, geoLat, normalizeLon(mcLon + H));
     }
 
-    if (ascPoints.length > 1) {
-      lines.push({
-        planet: planet.name,
-        planetSymbol: planet.symbol,
-        lineType: 'ASC',
-        color: planet.color,
-        points: sortPointsByLongitude(ascPoints),
-      });
-    }
+    // The points run from south to north, the order they are drawn in.
+    lines.push({
+      planet: planet.name,
+      planetSymbol: planet.symbol,
+      lineType: 'ASC',
+      color: planet.color,
+      points: ascPoints,
+    });
 
-    if (dscPoints.length > 1) {
-      lines.push({
-        planet: planet.name,
-        planetSymbol: planet.symbol,
-        lineType: 'DSC',
-        color: planet.color,
-        points: sortPointsByLongitude(dscPoints),
-      });
-    }
+    lines.push({
+      planet: planet.name,
+      planetSymbol: planet.symbol,
+      lineType: 'DSC',
+      color: planet.color,
+      points: dscPoints,
+    });
   }
 
   return {
@@ -270,11 +271,6 @@ export function calculateAstrocartography(
     birthLocation: { latitude: birthLat, longitude: birthLon },
     sky: { gmst, planets: planets.map(({ name, ra, dec, eclLon }) => ({ name, ra, dec, lon: eclLon })) },
   };
-}
-
-// Sort points by longitude and split if there's a wrap-around
-function sortPointsByLongitude(points: { latitude: number; longitude: number }[]) {
-  return points.sort((a, b) => a.longitude - b.longitude);
 }
 
 // Get line type label

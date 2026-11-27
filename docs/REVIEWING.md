@@ -30,8 +30,11 @@ Suggested review order:
    the demo still makes no network calls; `docs/AUDIO-BRIEFINGS.md` describes
    the server side of the second one.
    `frontend/src/utils/astrocartography.ts`: the spherical geometry behind the
-   map lines and the sky positions they are drawn from, with a test of its
-   invariants.
+   map lines and the sky positions they are drawn from. A rising or setting
+   line is walked along its own great circle in equal steps, so a planet near
+   the celestial equator keeps both lines, and where a line crosses the
+   antimeridian it gets a point on each side of it. The test checks every
+   point of every such line over a thousand skies.
 5. `packages/social-store/social.go`: parameterized queries, relationship
    visibility and persisted consent; note the required calling-layer authorization.
    Requests are serialized per pair and per sender with transaction-scoped
