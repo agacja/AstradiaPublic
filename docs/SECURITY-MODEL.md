@@ -249,13 +249,16 @@ properties below are the ones whose code and tests are published.
 | A Redis that stops answering fails the call instead of holding it forever | `state::timeout_tests::connecting_to_a_silent_server_fails_instead_of_hanging`, `state::timeout_tests::a_command_that_is_never_answered_fails_instead_of_hanging` |
 | A Redis that shut down is reached again within seconds of its return, by a store that was running and by one that was starting | `state::outage_tests::a_store_reads_again_within_seconds_of_the_servers_return`, `state::outage_tests::a_store_started_while_the_server_is_away_connects_within_seconds_of_its_return` |
 
-Two frontend modules written for this workspace read data from outside, and
-both check it where it enters:
+Four frontend modules read data from outside and check it where it enters.
+The first two were written for this workspace; the other two are product
+modules:
 
 | Property | Test in `frontend/tests` |
 | --- | --- |
 | A signal summary with an extra field, a field of the wrong shape, or an unavailable result with any action but `WAIT` is refused, always with the same message, and what is returned is built from checked values only | `contracts.test.ts` |
 | A candle response that is not a list of candles, or has a price that is not a number, is refused before the chart reads it; the request carries no credential and fails when it is not answered in time | `hyperliquid-candles.test.ts` |
+| An answer from the briefing routes that is not JSON, or a briefing with a field missing, becomes a message a member can read, never a parser error, and of a failure only words the server sent are shown | `briefing-response.test.ts` |
+| A message of the live candle stream with a field that is missing or not a number is dropped, so the chart and the price are never drawn from NaN | `candle-message.test.ts` |
 
 ## Social consent
 

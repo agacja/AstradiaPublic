@@ -22,6 +22,10 @@ Suggested review order:
    `frontend/src/lib/hyperliquid-candles.ts` checks the fields the chart
    reads in market data and bounds how long the request may take. `frontend/tsconfig.json` has the
    compiler settings all of this is held to.
+   Two product modules do the same for data the product reads:
+   `frontend/src/utils/briefing-response.ts` for the server's answers to the
+   audio player, and `frontend/src/utils/candle-message.ts` for the live
+   candle stream.
    `frontend/src/components/HyperliquidChart.tsx`: chart and WebSocket
    lifecycle. Each run of the chart effect owns a session that its history
    request, socket and reconnect timer check before acting, so a slow response

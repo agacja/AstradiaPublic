@@ -4,6 +4,7 @@ import { createChart, ColorType, CrosshairMode, CandlestickSeries, HistogramSeri
 import type { IChartApi, ISeriesApi, CandlestickData, Time, HistogramData } from 'lightweight-charts';
 import { ChartLine } from 'lucide-react';
 import { getCandles } from '../lib/hyperliquid-candles';
+import { readLiveCandle } from '../utils/candle-message';
 import '../styles/realtime-chart.css';
 
 export type PriceChartVariant = 'area' | 'candles';
@@ -315,31 +316,19 @@ function HyperliquidChartComponent({ symbol, height = 620, interval = '15m', lab
 
       ws.onmessage = (event) => {
         try {
-          const message = JSON.parse(event.data);
+          // Anything but a whole candle is not for the chart.
+          const live = readLiveCandle(JSON.parse(event.data));
+          if (!live) return;
+          const { volume, ...prices } = live;
+          const candle: CandlestickData<Time> = { ...prices, time: live.time as Time };
 
-          // Handle candle updates
-          if (message.channel === 'candle' && message.data) {
-            const d = message.data;
-            const candle: CandlestickData<Time> = {
-              time: Math.floor(d.t / 1000) as Time,
-              open: parseFloat(d.o),
-              high: parseFloat(d.h),
-              low: parseFloat(d.l),
-              close: parseFloat(d.c),
-            };
-
-            updatePrice(candle);
-
-            if (volumeSeriesRef.current) {
-              volumeSeriesRef.current.update({
-                time: Math.floor(d.t / 1000) as Time,
-                value: parseFloat(d.v),
-                color: parseFloat(d.c) >= parseFloat(d.o) ? CHART_COLORS.volumeUp : CHART_COLORS.volumeDown,
-              });
-            }
-
-            setCurrentPrice(parseFloat(d.c));
-          }
+          updatePrice(candle);
+          volumeSeriesRef.current?.update({
+            time: candle.time,
+            value: volume,
+            color: candle.close >= candle.open ? CHART_COLORS.volumeUp : CHART_COLORS.volumeDown,
+          });
+          setCurrentPrice(candle.close);
         } catch {
           // Silently ignore parse errors
         }
