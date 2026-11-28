@@ -1,11 +1,10 @@
-import { useEffect, useRef, useState, memo } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, memo } from 'react';
 import { reconnectDelay } from '../utils/reconnect-delay';
-import { createChart, ColorType, CrosshairMode, CandlestickSeries, HistogramSeries, AreaSeries } from 'lightweight-charts';
+import { createChart, ColorType, CrosshairMode, CandlestickSeries, HistogramSeries, AreaSeries, LineStyle } from 'lightweight-charts';
 import type { IChartApi, ISeriesApi, CandlestickData, Time, HistogramData } from 'lightweight-charts';
-import { ChartLine } from 'lucide-react';
 import { getCandles } from '../lib/hyperliquid-candles';
 import { readLiveCandle } from '../utils/candle-message';
-import '../styles/realtime-chart.css';
+import { AssetLogo, cn, Delta, Segmented, Skeleton, StateLabel, type SegmentOption } from '../redesign/ui';
 
 export type PriceChartVariant = 'area' | 'candles';
 
@@ -13,15 +12,15 @@ interface HyperliquidChartProps {
   symbol: string;
   height?: number;
   interval?: '1m' | '5m' | '15m' | '1h' | '4h' | '1d';
-  /** Display name for the card head ("Live Hyperliquid price · 15m"). Defaults to SYMBOL/USD. */
+  /** Display name for the head ("Hyperliquid"). Defaults to SYMBOL/USD. */
   label?: string;
-  /** 'area' = indigo line + gradient fill (astradia price card); 'candles' = OHLC candlesticks (trading screens). */
+  /** 'area' = a line over a flat tint (the price card); 'candles' = OHLC candlesticks (trading screens). */
   variant?: PriceChartVariant;
-  /** Render without the surrounding .astr-card chrome (the parent supplies the card). */
+  /** Render without the surrounding card (the parent supplies the surface). */
   bare?: boolean;
   /** Decimals of the head price. Left out, the precision follows the size of the price. */
   decimals?: number;
-  /** What the foot names as the origin of the stream. Defaults to "streaming updates". */
+  /** What the foot names as the origin of the stream. Defaults to "Hyperliquid". */
   source?: string;
 }
 
@@ -41,45 +40,84 @@ const INTERVAL_TO_MS: Record<string, number> = {
 };
 
 const INTERVALS = ['1m', '5m', '15m', '1h', '4h', '1d'] as const;
+type Interval = (typeof INTERVALS)[number];
+const INTERVAL_OPTIONS: SegmentOption<Interval>[] = INTERVALS.map((value) => ({ value, label: value }));
+const VIEW_OPTIONS: SegmentOption<PriceChartVariant>[] = [
+  { value: 'area', label: 'Line' },
+  { value: 'candles', label: 'Candles' },
+];
 
-// Custom theme colors matching the app - exported for use across all charts
-// Light theme — the chart canvas is drawn, not styled by CSS, so its palette
-// lives here. Ink-on-paper: light surface, dark text, saturated-but-readable
-// marks (validated against a #eef3fb surface).
+/**
+ * The price charts' palette. The canvas is drawn, not styled by CSS, so its
+ * colours live here. The original keys are the vellum (light) surface; `night`
+ * holds the values for a chart that sits on a night panel. Up candles are
+ * hollow gold, down candles solid rose, the line is violet (light) or pale
+ * lavender (night) over a flat tint. No gradients.
+ */
 // eslint-disable-next-line react-refresh/only-export-components -- a shared palette, exported for other charts
 export const CHART_COLORS = {
-  background: '#f4f7fc', // light blue paper
-  gridLines: '#dbe4f1', // soft blue rules
-  text: '#5b6485', // slate label ink
-  crosshair: '#4f46e5', // indigo
-  upColor: '#1b70da', // blue bullish (matches orderbook buy)
-  downColor: '#7c3aed', // purple bearish (matches orderbook sell)
-  volumeUp: 'rgba(27, 112, 218, 0.35)',
-  volumeDown: 'rgba(124, 58, 237, 0.32)',
-  // astradia "area" variant — drawn straight on the #f2f1fb card
-  cardBackground: '#f2f1fb',
-  gridSoft: 'rgba(124, 131, 242, 0.18)',
-  textSoft: '#59599b',
-  areaLine: '#5b63e8',
-  areaTop: 'rgba(124, 131, 242, 0.35)',
-  areaBottom: 'rgba(124, 131, 242, 0)',
+  background: 'transparent',
+  gridLines: '#ece8f8',
+  text: '#6a6490',
+  crosshair: '#5646d1',
+  crosshairLabel: '#5646d1',
+  upColor: '#b8800d',
+  downColor: '#c8455a',
+  volumeUp: 'rgba(184, 128, 13, 0.22)',
+  volumeDown: 'rgba(200, 69, 90, 0.2)',
+  cardBackground: 'transparent',
+  gridSoft: '#ece8f8',
+  textSoft: '#6a6490',
+  areaLine: '#5646d1',
+  areaTop: 'rgba(86, 70, 209, 0.08)',
+  areaBottom: 'rgba(86, 70, 209, 0.08)',
+  fontFamily: "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif",
+  night: {
+    gridLines: '#3f3573',
+    text: '#a99fd0',
+    crosshair: '#a99fd0',
+    crosshairLabel: '#31285a',
+    upColor: '#f2c14e',
+    downColor: '#ff9aaa',
+    volumeUp: 'rgba(242, 193, 78, 0.2)',
+    volumeDown: 'rgba(255, 154, 170, 0.2)',
+    areaLine: '#d3cbec',
+    areaTop: 'rgba(211, 203, 236, 0.07)',
+    areaBottom: 'rgba(211, 203, 236, 0.07)',
+  },
 };
 
+type Tone = 'light' | 'night';
+const paletteFor = (tone: Tone) => (tone === 'night' ? { ...CHART_COLORS, ...CHART_COLORS.night } : CHART_COLORS);
+
 function HyperliquidChartComponent({ symbol, height = 620, interval = '15m', label, variant = 'candles', bare = false, decimals, source }: HyperliquidChartProps) {
+  const rootRef = useRef<HTMLDivElement>(null);
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | ISeriesApi<'Area'> | null>(null);
   const volumeSeriesRef = useRef<ISeriesApi<'Histogram'> | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The palette of the surface the chart sits on (a night panel or a vellum card).
+  const paletteRef = useRef(paletteFor('light'));
 
   const [currentPrice, setCurrentPrice] = useState<number | null>(null);
   const [priceChange, setPriceChange] = useState<number>(0);
   const [isConnected, setIsConnected] = useState(false);
   const [selectedInterval, setSelectedInterval] = useState(interval);
   const [isLoading, setIsLoading] = useState(true);
+  const [tone, setTone] = useState<Tone>('light');
 
-  const isArea = variant === 'area';
+  // A page chart (bare) lets the member switch between the line and candles;
+  // the prop sets the view it opens with.
+  const [shownVariant, setShownVariant] = useState<PriceChartVariant>(variant);
+  useEffect(() => setShownVariant(variant), [variant]);
+  const isArea = shownVariant === 'area';
+
+  // A chart placed on a night panel takes the night palette; nothing to pass.
+  useLayoutEffect(() => {
+    setTone(rootRef.current?.closest('.rd-night') ? 'night' : 'light');
+  }, []);
 
   // Push candle data into whichever price series is mounted (area = close line).
   const setPriceData = (candles: CandlestickData<Time>[]) => {
@@ -98,80 +136,82 @@ function HyperliquidChartComponent({ symbol, height = 620, interval = '15m', lab
   useEffect(() => {
     if (!chartContainerRef.current) return;
 
-    // Create chart with custom indigo/purple theme
+    const palette = paletteFor(chartContainerRef.current.closest('.rd-night') ? 'night' : 'light');
+    paletteRef.current = palette;
+
     const chart = createChart(chartContainerRef.current, {
+      autoSize: true,
       layout: {
-        background: { type: ColorType.Solid, color: isArea ? CHART_COLORS.cardBackground : CHART_COLORS.background },
-        textColor: isArea ? CHART_COLORS.textSoft : CHART_COLORS.text,
-        fontFamily: "'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace",
-        fontSize: 10,
+        background: { type: ColorType.Solid, color: palette.background },
+        textColor: palette.text,
+        fontFamily: palette.fontFamily,
+        fontSize: 12,
       },
       grid: {
-        vertLines: { color: isArea ? 'transparent' : CHART_COLORS.gridLines },
-        horzLines: { color: isArea ? CHART_COLORS.gridSoft : CHART_COLORS.gridLines },
+        vertLines: { visible: false },
+        horzLines: { color: palette.gridLines },
       },
       crosshair: {
         mode: CrosshairMode.Normal,
-        vertLine: {
-          color: CHART_COLORS.crosshair,
-          width: 1,
-          style: 2,
-        },
-        horzLine: {
-          color: CHART_COLORS.crosshair,
-          width: 1,
-          style: 2,
-        },
+        vertLine: { color: palette.crosshair, width: 1, style: LineStyle.Dashed, labelBackgroundColor: palette.crosshairLabel },
+        horzLine: { color: palette.crosshair, width: 1, style: LineStyle.Dashed, labelBackgroundColor: palette.crosshairLabel },
       },
       rightPriceScale: {
-        borderColor: isArea ? CHART_COLORS.gridSoft : CHART_COLORS.gridLines,
+        borderVisible: false,
         scaleMargins: {
-          top: 0.05,
+          top: 0.08,
           bottom: 0.25, // More space for volume
         },
       },
       timeScale: {
-        borderColor: isArea ? CHART_COLORS.gridSoft : CHART_COLORS.gridLines,
+        borderVisible: false,
         timeVisible: true,
         secondsVisible: selectedInterval === '1m',
       },
+      // A bare chart sits inside a page's panel: the page keeps the mouse wheel
+      // and vertical swipes, so scrolling never gets caught on the chart. Drag
+      // and pinch still pan and zoom it; a framed chart (the trading desk) keeps the wheel.
+      handleScroll: bare ? { mouseWheel: false, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false } : true,
+      handleScale: bare ? { mouseWheel: false, pinch: true, axisPressedMouseMove: true, axisDoubleClickReset: true } : true,
       width: chartContainerRef.current.clientWidth,
       height: height,
     });
 
     chartRef.current = chart;
 
-    // Price series: astradia area line (indigo → transparent fill) or candlesticks
+    // Price series: a line over a flat tint, or candlesticks (hollow gold up, solid rose down)
     if (isArea) {
       const areaSeries = chart.addSeries(AreaSeries, {
-        lineColor: CHART_COLORS.areaLine,
-        topColor: CHART_COLORS.areaTop,
-        bottomColor: CHART_COLORS.areaBottom,
+        lineColor: palette.areaLine,
+        topColor: palette.areaTop,
+        bottomColor: palette.areaBottom,
         lineWidth: 2,
-        priceLineColor: CHART_COLORS.areaLine,
-        crosshairMarkerBackgroundColor: CHART_COLORS.areaLine,
-        crosshairMarkerBorderColor: CHART_COLORS.cardBackground,
+        priceLineColor: palette.areaLine,
+        crosshairMarkerBackgroundColor: palette.areaLine,
+        crosshairMarkerBorderColor: palette.areaLine,
       });
       candleSeriesRef.current = areaSeries as ISeriesApi<'Area'>;
     } else {
       const candleSeries = chart.addSeries(CandlestickSeries, {
-        upColor: CHART_COLORS.upColor,
-        downColor: CHART_COLORS.downColor,
-        borderUpColor: CHART_COLORS.upColor,
-        borderDownColor: CHART_COLORS.downColor,
-        wickUpColor: CHART_COLORS.upColor,
-        wickDownColor: CHART_COLORS.downColor,
+        upColor: 'rgba(0, 0, 0, 0)',
+        downColor: palette.downColor,
+        borderUpColor: palette.upColor,
+        borderDownColor: palette.downColor,
+        wickUpColor: palette.upColor,
+        wickDownColor: palette.downColor,
       });
       candleSeriesRef.current = candleSeries as ISeriesApi<'Candlestick'>;
     }
 
-    // Create volume series with purple theme
     const volumeSeries = chart.addSeries(HistogramSeries, {
-      color: CHART_COLORS.volumeUp,
+      color: palette.volumeUp,
       priceFormat: {
         type: 'volume',
       },
       priceScaleId: '',
+      // Volume is context under the price: no label of its own on the price scale.
+      lastValueVisible: false,
+      priceLineVisible: false,
     });
     volumeSeries.priceScale().applyOptions({
       scaleMargins: {
@@ -193,20 +233,9 @@ function HyperliquidChartComponent({ symbol, height = 620, interval = '15m', lab
     // Connect to WebSocket for real-time updates
     connectWebSocket(session);
 
-    // Handle resize
-    const handleResize = () => {
-      if (chartContainerRef.current && chartRef.current) {
-        chartRef.current.applyOptions({
-          width: chartContainerRef.current.clientWidth,
-        });
-      }
-    };
-
-    window.addEventListener('resize', handleResize);
-
+    // The chart follows its container's size itself (autoSize).
     return () => {
       session.live = false;
-      window.removeEventListener('resize', handleResize);
       closeSocket();
       // Null the refs BEFORE remove() so late messages/frames see them gone
       candleSeriesRef.current = null;
@@ -217,7 +246,7 @@ function HyperliquidChartComponent({ symbol, height = 620, interval = '15m', lab
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [symbol, selectedInterval, height, isArea]);
+  }, [symbol, selectedInterval, height, isArea, bare]);
 
   // Cancel a pending reconnect and drop the socket without letting it call back.
   const closeSocket = () => {
@@ -262,10 +291,11 @@ function HyperliquidChartComponent({ symbol, height = 620, interval = '15m', lab
         close: parseFloat(d.c),
       }));
 
+      const palette = paletteRef.current;
       const volumes: HistogramData<Time>[] = data.map((d: { t: number; o: string; c: string; v: string }) => ({
         time: Math.floor(d.t / 1000) as Time,
         value: parseFloat(d.v),
-        color: parseFloat(d.c) >= parseFloat(d.o) ? CHART_COLORS.volumeUp : CHART_COLORS.volumeDown,
+        color: parseFloat(d.c) >= parseFloat(d.o) ? palette.volumeUp : palette.volumeDown,
       }));
 
       setPriceData(candles);
@@ -326,7 +356,7 @@ function HyperliquidChartComponent({ symbol, height = 620, interval = '15m', lab
           volumeSeriesRef.current?.update({
             time: candle.time,
             value: volume,
-            color: candle.close >= candle.open ? CHART_COLORS.volumeUp : CHART_COLORS.volumeDown,
+            color: candle.close >= candle.open ? paletteRef.current.volumeUp : paletteRef.current.volumeDown,
           });
           setCurrentPrice(candle.close);
         } catch {
@@ -372,47 +402,52 @@ function HyperliquidChartComponent({ symbol, height = 620, interval = '15m', lab
     return price.toFixed(6);
   };
 
-  const status = isLoading ? 'loading' : isConnected ? 'live' : 'connecting';
+  const night = tone === 'night';
+  const streaming = isConnected && !isLoading;
 
   return (
-    <div className={`${bare ? '' : 'astr-card '}rtc-card`}>
-      {/* Head: label + live price */}
-      <div className="rtc-head">
-        <div className="rtc-head-label">
-          <ChartLine size={14} />
-          Live {label ?? `${symbol}/USD`} price · {selectedInterval}
-        </div>
-        {currentPrice !== null && (
-          <div className="rtc-price-wrap">
-            <span className="rtc-price">${formatPrice(currentPrice)}</span>
-            <span className={`rtc-change ${priceChange >= 0 ? 'up' : 'down'}`}>
-              {priceChange >= 0 ? '+' : ''}{priceChange.toFixed(2)}%
-            </span>
-          </div>
+    <div
+      ref={rootRef}
+      className={cn('flex min-w-0 flex-col gap-4 md:gap-5', !bare && 'rounded-[24px] border border-line bg-vellum p-5 md:p-7')}
+    >
+      {/* Head: what is charted, then the live price */}
+      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
+        <p className={cn('flex min-w-0 items-center gap-2 text-[16px] font-semibold', night ? 'text-night-ink' : 'text-ink')}>
+          <AssetLogo symbol={symbol} size={18} className={night ? 'text-night-ink' : 'text-ink-2'} />
+          <span className="truncate">{label ?? `${symbol}/USD`}</span>
+        </p>
+        {currentPrice !== null ? (
+          <p className="flex items-baseline gap-3">
+            <span className={cn('font-display text-[30px] leading-none tabular-nums md:text-[38px]', night ? 'text-night-ink' : 'text-ink')}>${formatPrice(currentPrice)}</span>
+            <Delta value={Math.round(priceChange * 100) / 100} tone={tone} className="text-[15px]" />
+          </p>
+        ) : (
+          <Skeleton tone={tone} className="h-[30px] w-44 md:h-[38px]" />
         )}
       </div>
 
-      {/* Chart container */}
-      <div ref={chartContainerRef} className="rtc-canvas" />
+      {/* The canvas, with a quiet block in its place until the history arrives */}
+      <div className="relative">
+        <div ref={chartContainerRef} className="w-full" style={{ height }} />
+        {isLoading && currentPrice === null && <Skeleton tone={tone} className="pointer-events-none absolute inset-0 rounded-[16px]" />}
+      </div>
 
-      {/* Interval pills + refresh note */}
-      <div className="rtc-foot">
-        <div className="rtc-intervals" role="group" aria-label="Chart interval">
-          {INTERVALS.map((int) => (
-            <button
-              key={int}
-              type="button"
-              className={`rtc-pill${selectedInterval === int ? ' active' : ''}`}
-              onClick={() => handleIntervalChange(int)}
-            >
-              {int}
-            </button>
-          ))}
+      {/* Interval choice + the stream's state */}
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <Segmented<Interval>
+            size="sm"
+            tone={tone}
+            label="Chart interval"
+            options={INTERVAL_OPTIONS}
+            value={selectedInterval as Interval}
+            onChange={handleIntervalChange}
+          />
+          {bare && <Segmented<PriceChartVariant> size="sm" tone={tone} label="Chart view" options={VIEW_OPTIONS} value={shownVariant} onChange={setShownVariant} />}
         </div>
-        <span className="rtc-note">
-          <span className={`rtc-dot${isConnected && !isLoading ? '' : ' off'}`} />
-          {status} · {source ?? 'streaming updates'}
-        </span>
+        <StateLabel kind={streaming ? 'live' : 'rest'} tone={tone} className="text-[14px]">
+          {streaming ? 'Live' : 'Connecting'} · {source ?? 'Hyperliquid'}
+        </StateLabel>
       </div>
     </div>
   );

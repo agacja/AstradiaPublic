@@ -27,7 +27,7 @@
       "sha256": "df3347dee9748642afab39edf06a2b0fa22a1f8616f1fe4243c7daca7aadc220"
     },
     "COPYRIGHT.md": {
-      "sha256": "01697cb2c9e41ae86f407d0807a11e86a59396e0cbbc5a31bf1881ffc938cf5d"
+      "sha256": "ae19ea595b8adff64b3f993e375c48b2b0b0448f5afaa1fc817498651b317dc9"
     },
     "README.md": {
       "sha256": "87437699fd347642de1ff7f5107a581a2803a7ff6e720a032176330172e29b2c"
@@ -51,7 +51,7 @@
       "sha256": "c71b37c18371d6b68f8bf594a89d3b6cc79d0e29d4662931259ecffe737233fa"
     },
     "docs/PROVENANCE.md": {
-      "sha256": "9caec7762ee09d2acbda2a3f9397b8e76e8fcc055ff87d2b7debd24a5077f7e5"
+      "sha256": "c861f6922aed1315304236036d5b446fcfdc4572d8476514c7a842bd387b6ab0"
     },
     "docs/PUBLIC-BOUNDARY.md": {
       "sha256": "7edad45b93d4a1345999dcef4d3e90250bf1783e0867ebdeb92bf2cd7792de7b"
@@ -69,10 +69,10 @@
       "sha256": "e9cabdb00c905fed80e9ccf93e0baec5e73f49e27ce0c0b70026f7443d6f5877"
     },
     "frontend/package-lock.json": {
-      "sha256": "bc92a966af9a9173235c3e7a78bbaf561377cc2f2980cd4dd2bf24cc14ea2c37"
+      "sha256": "c86e007d2e39ce5375e7a0561979a3d6faf387435e1f9a47c56a3eaa879d39b0"
     },
     "frontend/package.json": {
-      "sha256": "1587403bb2e5892154132045584fb34b717a082bd5b20aab2c351d1632dc3ba7"
+      "sha256": "02908910b98f371095ee69dba3a471aef08cc96240894ffa5c89da02b37f1a6f"
     },
     "frontend/src/App.tsx": {
       "sha256": "bdcfb6274d08a378e3c5c58d240bfe19b29534fb00d8a7ec19b79ad04a345216"
@@ -81,13 +81,13 @@
       "sha256": "e1757ad4380354c3a32b7c4be137109104486bda7696a65ee49edf00e6eb9068"
     },
     "frontend/src/components/DailyAudioBriefing.tsx": {
-      "sha256": "e23a2716e9b9b70417d21dc720c6313cedc9934ce24e2cd6ebe38ea0d3b5d2ad"
+      "sha256": "818f4059386fede5de31268661b4235cc504a350936278e279ddda43740ee26b"
     },
     "frontend/src/components/Glyph.tsx": {
       "sha256": "152293123f8280424530e8e7d81f8de83ab0dc9a38fdab71f9a07746d6b5a769"
     },
     "frontend/src/components/HyperliquidChart.tsx": {
-      "sha256": "300faa3dbc06379baffa2a1eb7fe22d133f5410c9f11352ebe6ffbcedbc6433d"
+      "sha256": "f7b5b6e53bfcbe7137fe13aa7240bd3be25859e7b69630bff16f02af1be879f3"
     },
     "frontend/src/contracts.ts": {
       "sha256": "42cdd8d7cbbc8f0c627e94b18ff33463a29dcd137c316d395e56679c98532e41"
@@ -101,14 +101,44 @@
     "frontend/src/main.tsx": {
       "sha256": "4297818d8c70228a30bb2c16a877a28eda1d0d94fa6de8c9ebcc87cbd6f865ae"
     },
+    "frontend/src/redesign/ui/AssetLogo.tsx": {
+      "sha256": "a0241dd06db24fef7e6d7d61f0060ea957eaaf48ac42b421801d005fe763b671"
+    },
+    "frontend/src/redesign/ui/Button.tsx": {
+      "sha256": "a2c951ccdddd055403db29e3a7ebe67d45168df6fb2c35518aec68661e64a067"
+    },
+    "frontend/src/redesign/ui/Collapse.tsx": {
+      "sha256": "2bc7d34dfe9caee7e0628590728c7a7e3b0ba7df49b6d5d64c424e16f7aca35c"
+    },
+    "frontend/src/redesign/ui/Icon.tsx": {
+      "sha256": "981b0f3ff587ceb91f742883e406e887b29210aea5d70d294568bc47fdcc9d74"
+    },
+    "frontend/src/redesign/ui/Layout.tsx": {
+      "sha256": "3d80e37396a037d0e6a4ae0e4ff9d684b8c3b3d804f3f26ff5568f23068f086f"
+    },
+    "frontend/src/redesign/ui/Marks.tsx": {
+      "sha256": "c23bb08b34e475a0d99e2189d4c967855a1797efec15aa75681a53dbbf6285b7"
+    },
+    "frontend/src/redesign/ui/Segmented.tsx": {
+      "sha256": "0ed29807deeccb5069697cc11d7d80a562c276c436ffa1940f4e42e0ba92cce3"
+    },
+    "frontend/src/redesign/ui/Skeleton.tsx": {
+      "sha256": "537258edb1d06ddf58d7bee930557e164678d67610aad876098a78769c177176"
+    },
+    "frontend/src/redesign/ui/assetMarks.ts": {
+      "sha256": "27be9808313d1cc07d33faf6c270ad8f837ad24833a3bb9efc1e8102da65e3df"
+    },
+    "frontend/src/redesign/ui/cn.ts": {
+      "sha256": "653811a37056355ced62b4b933d0495729bf8b7a2c2dadc82590b0d2f4b686f2"
+    },
+    "frontend/src/redesign/ui/index.ts": {
+      "sha256": "00f1db5e0003d54bab1d1de176d84deba88189dd6fda6198b8ab70d856736b8b"
+    },
+    "frontend/src/redesign/ui/motion.ts": {
+      "sha256": "62d381782a3af0b9e7a3545c838ae208fc80e15d392597caf964950c100088bc"
+    },
     "frontend/src/style.css": {
       "sha256": "d047aef97d7154bba264f0510c003a30a6cf2eeef6c841de97497e43dd9ca673"
-    },
-    "frontend/src/styles/audio-briefing.css": {
-      "sha256": "c317f695db172c459a4af35392d6b74e38e1aafe15733e9c87e38372b5d59d9c"
-    },
-    "frontend/src/styles/realtime-chart.css": {
-      "sha256": "eb7826f079226a01636bd482950de2be686655e57cfbfbe5e0599d7cae91290d"
     },
     "frontend/src/utils/astrocartography.ts": {
       "sha256": "b984d151721d4acd5226f525f544c705e043482641e5289c2d198a5c1b173a13"

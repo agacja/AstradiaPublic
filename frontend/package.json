@@ -10,11 +10,14 @@
     "test": "tsc --noEmit -p tsconfig.node.json && node --import tsx --test tests/*.test.ts"
   },
   "dependencies": {
+    "@gsap/react": "2.1.2",
     "astronomy-engine": "2.1.19",
+    "gsap": "3.15.1",
     "lightweight-charts": "5.1.0",
     "lucide-react": "0.562.0",
     "react": "19.2.0",
-    "react-dom": "19.2.0"
+    "react-dom": "19.2.0",
+    "tailwind-merge": "3.7.0"
   },
   "devDependencies": {
     "@types/node": "24.10.1",

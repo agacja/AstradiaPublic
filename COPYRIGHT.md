@@ -11,6 +11,7 @@ components or third-party material:
 - `services/ephemeris/PROTOCOL-LICENSE`: MIT for that component's `src/protocol.rs` only.
 - `services/ephemeris/SWISS-LICENSE`: Swiss Ephemeris notice and terms.
 - `services/ephemeris/data/ephemeris/LICENSE`: notice distributed with the bundled astronomical data.
+- `frontend/src/redesign/ui/assetMarks.ts`: token marks from `@web3icons/core` 4.0.61 (github.com/0xa3k5/web3icons), published by its authors under the MIT license.
 - npm, Go, and Rust dependencies retain their respective upstream licenses.
 
 The proprietary trading engine is absent. Nothing here licenses or distributes
