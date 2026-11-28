@@ -51,7 +51,7 @@
       "sha256": "c71b37c18371d6b68f8bf594a89d3b6cc79d0e29d4662931259ecffe737233fa"
     },
     "docs/PROVENANCE.md": {
-      "sha256": "e7d2b08b9120629553bdebcbe0c538928a84ae9f26fd12938aea6a0260606f9f"
+      "sha256": "9caec7762ee09d2acbda2a3f9397b8e76e8fcc055ff87d2b7debd24a5077f7e5"
     },
     "docs/PUBLIC-BOUNDARY.md": {
       "sha256": "7edad45b93d4a1345999dcef4d3e90250bf1783e0867ebdeb92bf2cd7792de7b"
@@ -78,13 +78,13 @@
       "sha256": "bdcfb6274d08a378e3c5c58d240bfe19b29534fb00d8a7ec19b79ad04a345216"
     },
     "frontend/src/components/ChartWheel.tsx": {
-      "sha256": "0e892e29d050027c97af2b836257974fdafa535a992bfc9556bd6fb9871fa55b"
+      "sha256": "e1757ad4380354c3a32b7c4be137109104486bda7696a65ee49edf00e6eb9068"
     },
     "frontend/src/components/DailyAudioBriefing.tsx": {
       "sha256": "e23a2716e9b9b70417d21dc720c6313cedc9934ce24e2cd6ebe38ea0d3b5d2ad"
     },
     "frontend/src/components/Glyph.tsx": {
-      "sha256": "fa9bf9747d949968678fc7415d9b1f1ab7b6f8469cf44418e041152063402ee4"
+      "sha256": "152293123f8280424530e8e7d81f8de83ab0dc9a38fdab71f9a07746d6b5a769"
     },
     "frontend/src/components/HyperliquidChart.tsx": {
       "sha256": "300faa3dbc06379baffa2a1eb7fe22d133f5410c9f11352ebe6ffbcedbc6433d"

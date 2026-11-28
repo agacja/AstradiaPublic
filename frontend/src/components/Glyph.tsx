@@ -76,6 +76,7 @@ export function signPath(sign: string): string {
 }
 
 interface GlyphProps {
+  /** Pass title="" when the name is printed beside the glyph: it is then hidden from screen readers. */
   size?: number;
   color?: string;
   strokeWidth?: number;
@@ -85,10 +86,10 @@ interface GlyphProps {
 }
 
 /** Planet glyph (Sun, Moon, Mercury … Pluto, nodes, ASC/MC). */
-export function PlanetGlyph({ name, size = 14, color = '#312e81', strokeWidth = 1.8, className, style, title }: GlyphProps & { name: string }) {
+export function PlanetGlyph({ name, size = 14, color = 'currentColor', strokeWidth = 1.8, className, style, title }: GlyphProps & { name: string }) {
   const d = planetPath(name);
   return (
-    <svg width={size} height={size} viewBox="-10 -10 20 20" className={className} style={{ flexShrink: 0, ...style }} aria-label={title ?? name} role="img">
+    <svg width={size} height={size} viewBox="-10 -10 20 20" className={className} style={{ flexShrink: 0, ...style }} aria-label={title === '' ? undefined : title ?? name} aria-hidden={title === '' ? true : undefined} role={title === '' ? undefined : 'img'}>
       {title && <title>{title}</title>}
       <path d={d} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
     </svg>
@@ -96,11 +97,11 @@ export function PlanetGlyph({ name, size = 14, color = '#312e81', strokeWidth = 
 }
 
 /** Zodiac sign glyph (by sign name or index). */
-export function SignGlyph({ sign, size = 12, color = '#312e81', strokeWidth = 1.8, className, style, title }: GlyphProps & { sign: string | number }) {
+export function SignGlyph({ sign, size = 12, color = 'currentColor', strokeWidth = 1.8, className, style, title }: GlyphProps & { sign: string | number }) {
   const d = typeof sign === 'number' ? (SIGN_PATHS[((sign % 12) + 12) % 12] ?? '') : signPath(sign);
   const label = typeof sign === 'number' ? SIGN_NAMES[((sign % 12) + 12) % 12] : sign;
   return (
-    <svg width={size} height={size} viewBox="-10 -10 20 20" className={className} style={{ flexShrink: 0, ...style }} aria-label={title ?? label} role="img">
+    <svg width={size} height={size} viewBox="-10 -10 20 20" className={className} style={{ flexShrink: 0, ...style }} aria-label={title === '' ? undefined : title ?? label} aria-hidden={title === '' ? true : undefined} role={title === '' ? undefined : 'img'}>
       {title && <title>{title}</title>}
       <path d={d} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
     </svg>

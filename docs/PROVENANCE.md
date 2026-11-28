@@ -1,7 +1,7 @@
 # Component provenance
 
 Prepared from Astradia's maintained source in November 2026, and brought up to
-the source deployed on 27 November 2026. No private commit
+the source deployed on 28 November 2026, except where a row says otherwise. No private commit
 history, production configuration, account data, or model reference results were
 copied. The public repository's initial commit is its own root commit.
 
@@ -14,9 +14,9 @@ copied. The public repository's initial commit is its own root commit.
 | `frontend/src/utils/chart-types.ts` | Display-only message types extracted from a mixed private calculation module; implementation excluded |
 | `frontend/tests/free-tier.test.ts`, `payment-access-watch.test.ts`, `briefing-response.test.ts`, `candle-message.test.ts` | Existing regression tests using synthetic local fixtures |
 | `frontend/src/utils/reconnect-delay.ts`, `frontend/tests/reconnect-delay.test.ts` | Product backoff helper used by the live price chart, and its test; unchanged |
-| `frontend/src/components/HyperliquidChart.tsx`, `utils/candle-message.ts`, `styles/realtime-chart.css` | Product live price chart, the module that reads the stream's candles, and its stylesheet; two import paths redirected and one comment reworded. Two places that read a table or a list by index are guarded for this workspace's stricter compiler settings, with no change in what they do. Reads public market data only |
+| `frontend/src/components/HyperliquidChart.tsx`, `utils/candle-message.ts`, `styles/realtime-chart.css` | Product live price chart, the module that reads the stream's candles, and its stylesheet, as deployed before the product's late-November redesign (production has since restyled it); two import paths redirected and one comment reworded. Two places that read a table or a list by index are guarded for this workspace's stricter compiler settings, with no change in what they do. Reads public market data only |
 | `frontend/src/lib/hyperliquid-candles.ts`, `frontend/tests/hyperliquid-candles.test.ts` | Written for this workspace: a read-only candle fetch that checks the response's shape and bounds the wait, standing in for the product's exchange SDK client, and its test |
-| `frontend/src/components/DailyAudioBriefing.tsx`, `utils/audio-briefing-api.ts`, `utils/briefing-response.ts`, `styles/audio-briefing.css` | Product audio briefing player, client, the module that reads the server's answers, and stylesheet; three import paths redirected |
+| `frontend/src/components/DailyAudioBriefing.tsx`, `utils/audio-briefing-api.ts`, `utils/briefing-response.ts`, `styles/audio-briefing.css` | Product audio briefing player, client, the module that reads the server's answers, and stylesheet; the player and stylesheet as deployed before the product's late-November redesign; three import paths redirected |
 | `frontend/src/utils/astrocartography.ts`, `frontend/tests/astrocartography.test.ts` | The geometry half of the product module: equatorial conversion, sidereal time, the four line families and the sky positions they are drawn from, with the Julian-day helper inlined. The interpretation text that follows it in the product file is excluded. The test was written for this workspace; its checks of the rising and setting lines follow the product's own test of them, measuring distances with a great-circle angle of its own, and without the checks of private modules |
 | `frontend/src/utils/session.ts` | Written for this workspace: the two session helpers the audio player imports, without the private API client around them |
 | `frontend/vite.config.ts` | Reviewer build configuration carrying the product's bundle guard plugin in a reduced form, and its dependency-scan setting with the comment reworded |

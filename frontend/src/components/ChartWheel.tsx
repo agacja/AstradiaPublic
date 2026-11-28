@@ -88,7 +88,7 @@ export function ChartWheel() {
         <div className="planet-list">
           {ILLUSTRATION.map(planet => (
             <button key={planet.name} onClick={() => setSelected(planet)} aria-pressed={selected.name === planet.name}>
-              <PlanetGlyph name={planet.name} size={18} />
+              <PlanetGlyph name={planet.name} size={18} title="" />
               <span>{planet.name}</span>
               <span className="mono">{planet.longitude}°</span>
             </button>
