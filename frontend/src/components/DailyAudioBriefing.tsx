@@ -108,13 +108,13 @@ function BriefingPlayer({ token }: { token: string }) {
     weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC',
   });
   return (
-    <section className="ad-card ab-card" aria-label="Your daily audio briefing">
+    <section className="astr-card ab-card" aria-label="Your daily audio briefing">
       <div className="ab-heading">
         <span className="ab-icon" aria-hidden="true"><Headphones size={23} /></span>
         <div className="ab-title">
           <p className="ab-eyebrow">A moment for your day</p>
-          <h2 className="ad-card-title">Your daily briefing</h2>
-          <p className="ad-card-desc">Your personal reading, ready to listen to.</p>
+          <h2 className="astr-card-title">Your daily briefing</h2>
+          <p className="astr-card-desc">Your personal reading, ready to listen to.</p>
         </div>
         <div className="ab-wave" aria-hidden="true">{[12, 23, 16, 33, 23, 42, 28, 16, 30, 20, 12].map((height, i) => <span key={i} style={{ height }} />)}</div>
       </div>
@@ -126,9 +126,9 @@ function BriefingPlayer({ token }: { token: string }) {
           {briefing?.status === 'unavailable' && <p className="ab-status">Audio is not available yet. Your written briefing is below.</p>}
           {briefing?.status === 'limit_reached' && <p className="ab-status">Today’s audio generation limit has been reached. Your written briefing is still available.</p>}
         </div>
-        {error && <div className="ab-error" role="alert"><p>{error}</p><button type="button" className="ad-btn-ghost" disabled={busy} onClick={() => setReload(n => n + 1)}><RefreshCw size={14} /> Reload briefing</button></div>}
+        {error && <div className="ab-error" role="alert"><p>{error}</p><button type="button" className="astr-btn-ghost" disabled={busy} onClick={() => setReload(n => n + 1)}><RefreshCw size={14} /> Reload briefing</button></div>}
         {briefing && !audioUrl && (briefing.canGenerate || briefing.status === 'ready') && (
-          <button type="button" className="ad-btn ab-listen" disabled={generating || loading} onClick={listen}>
+          <button type="button" className="astr-btn ab-listen" disabled={generating || loading} onClick={listen}>
             <Play size={15} /> {briefing.status === 'ready' ? 'Listen to briefing' : 'Create audio briefing'}
           </button>
         )}

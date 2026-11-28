@@ -17,7 +17,7 @@ maintained separately and is not included here.**
 | Rust + Axum | Standalone Swiss Ephemeris HTTP service, request validation, bounded CPU work, source distribution | The generic astronomy component used by the private platform |
 | Go + PostgreSQL | Social persistence, profile preferences, friendships, mutual consent, avatars, the social schema migrations, query regression tests | An extracted data-access package; not the complete production social API |
 | Rust platform core | AES-GCM credential envelope, atomic Redis leases, nonces, counters and queues with bounded waits, request coalescing, Hyperliquid action hashing and signing with a verified remote signer, Stripe and NOWPayments notification verification, the membership time check | Production modules from the private API and worker, with their tests; the routes, worker loop and engine that call them stay private |
-| Go primitives | Credential envelope with a self-redacting secret type, and a pure-Go planetary position calculator | Production packages from the Go social service, standard library only |
+| Go primitives | Credential envelope with a self-redacting secret type, and a pure-Go planetary position calculator | Packages from the Go backend, standard library only. The calculator runs in the Go social service; the envelope is no longer part of that service and stays as the format's second implementation |
 | Integration contracts | A minimal, illustrative signal-summary contract | Shows how a client consumes results without containing the evaluation algorithm |
 | Engineering documentation | Architecture, security model and execution safety with diagrams; scope, provenance, and release checks | Explains the private components without publishing their implementation |
 
@@ -101,8 +101,8 @@ on its own, with no database, Redis instance or network access, which is the
 practical proof that none of it depends on the private engine.
 
 **Go primitives** — see [package instructions](packages/go-primitives/README.md).
-The Go social service's credential envelope and its pure-Go planetary position
-calculator. Standard library only.
+The Go social service's pure-Go planetary position calculator, and the Go
+implementation of the credential envelope. Standard library only.
 
 [Execution safety](docs/EXECUTION-SAFETY.md) describes how the worker uses
 these pieces: one actor at a time, nonces that never repeat, signatures

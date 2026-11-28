@@ -3,8 +3,8 @@
 .ab-icon { display: flex; align-items: center; justify-content: center; width: 48px; height: 48px; flex: 0 0 auto; border: 1px solid var(--ad-brand-border); border-radius: 14px; color: var(--ad-brand-deep); background: rgba(255,255,255,.5); }
 .ab-title { min-width: 0; }
 .ab-eyebrow { margin: 0 0 4px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.3px; color: var(--ad-muted); }
-.ab-title .ad-card-title { margin: 0 0 3px; }
-.ab-title .ad-card-desc { margin: 0; }
+.ab-title .astr-card-title { margin: 0 0 3px; }
+.ab-title .astr-card-desc { margin: 0; }
 .ab-wave { margin-left: auto; display: flex; align-items: center; gap: 4px; padding-left: 16px; }
 .ab-wave span { width: 4px; border-radius: 3px; background: var(--ad-brand-4); opacity: .6; }
 .ab-body { padding: 16px 24px 20px; }

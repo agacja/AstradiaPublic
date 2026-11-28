@@ -34,6 +34,21 @@ export interface StoredBirthData {
   currentLongitude: number;
 }
 
+/**
+ * The instant of a birth entered as a local date and clock time with its UTC
+ * offset in hours. The offset is taken off as minutes: handing `Date.UTC` an
+ * hour such as 4.5 drops the fraction, which put every birth in a half-hour
+ * or quarter-hour zone (India, Iran, Nepal, central Australia) up to
+ * forty-five minutes off.
+ */
+export function birthInstant({ date, time, timezoneOffset }: Pick<StoredBirthData, 'date' | 'time' | 'timezoneOffset'>): Date {
+  // A missing field reads as NaN, so a date or time that lacks one gives an
+  // invalid Date. A field out of range is carried over, as `Date.UTC` does.
+  const [year = NaN, month = NaN, day = NaN] = date.split('-').map(Number);
+  const [hours = NaN, minutes = NaN] = time.split(':').map(Number);
+  return new Date(Date.UTC(year, month - 1, day, hours, minutes) - Math.round(timezoneOffset * 60) * 60_000);
+}
+
 export function loadSavedChartData(): { birthData: StoredBirthData | null; chart: NatalChart | null } {
   try {
     const savedBirthData = localStorage.getItem(STORAGE_KEY_BIRTH_DATA);

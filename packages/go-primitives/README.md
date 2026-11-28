@@ -1,7 +1,9 @@
 # Go primitives
 
-Two dependency-free packages from Astradia's Go social service. Both use only
-the standard library, so there is no `go.sum`.
+Two dependency-free packages from Astradia's Go backend. `ephem` runs in the
+Go social service. `vault` is no longer part of it and stays here as the
+second implementation of the format the Rust crate reads and writes. Both use
+only the standard library, so there is no `go.sum`.
 
 | Package | What it shows |
 | --- | --- |

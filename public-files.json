@@ -30,7 +30,7 @@
       "sha256": "01697cb2c9e41ae86f407d0807a11e86a59396e0cbbc5a31bf1881ffc938cf5d"
     },
     "README.md": {
-      "sha256": "3f9b674110c6ef53c0e56c837843390ba7a5542af82dd0811123b2870037603b"
+      "sha256": "87437699fd347642de1ff7f5107a581a2803a7ff6e720a032176330172e29b2c"
     },
     "SECURITY.md": {
       "sha256": "b097fabf350f2b99d6f7df3f30f8e248fbc6bbbaf6447873566b6a67c3d795fd"
@@ -42,7 +42,7 @@
       "sha256": "8e8751a05789e3e276cd9ec04fc19918e3efbb347cbb808eaecf8129838cec87"
     },
     "docs/ARCHITECTURE.md": {
-      "sha256": "bca4855f9cbd495b288b51078fb1439d233e7fe3d4271900d25ae42798b434d4"
+      "sha256": "f7c8f9f2cf64e0262f74fd8aac3de5f7a9de33dc2f5d25a17a4e644c6f8f3599"
     },
     "docs/AUDIO-BRIEFINGS.md": {
       "sha256": "76309fe775e5199fe2e1ed7ce905fb835686de23845f6e0a3cc060096171d572"
@@ -51,7 +51,7 @@
       "sha256": "c71b37c18371d6b68f8bf594a89d3b6cc79d0e29d4662931259ecffe737233fa"
     },
     "docs/PROVENANCE.md": {
-      "sha256": "23f049f847ec9003257490e974941ee75ab8a3806ed9f4f4c912541ddf0158ad"
+      "sha256": "e7d2b08b9120629553bdebcbe0c538928a84ae9f26fd12938aea6a0260606f9f"
     },
     "docs/PUBLIC-BOUNDARY.md": {
       "sha256": "7edad45b93d4a1345999dcef4d3e90250bf1783e0867ebdeb92bf2cd7792de7b"
@@ -60,7 +60,7 @@
       "sha256": "2d398bc6259b5e2a367efc446407933ebfe9a442284378dacbaf5fb7c05367e7"
     },
     "docs/SECURITY-MODEL.md": {
-      "sha256": "48cc00097ab1a2eeeec227465884b76f8a4ab5bed8a38a725822559b49eb2fd0"
+      "sha256": "582c4ca83a382e5b159000a0453a2e6b1c19177ba797ed2be889d11e42655e99"
     },
     "docs/schema/audio-briefings.sql": {
       "sha256": "4feab863e15080f704ae874e4dc8d1fa749f514b43eb1b92a4461a72a8be5719"
@@ -81,13 +81,13 @@
       "sha256": "0e892e29d050027c97af2b836257974fdafa535a992bfc9556bd6fb9871fa55b"
     },
     "frontend/src/components/DailyAudioBriefing.tsx": {
-      "sha256": "c4417049fc72e136dc16e97f2658ad3289e7191fbefb86cdb6f8d368885471c1"
+      "sha256": "e23a2716e9b9b70417d21dc720c6313cedc9934ce24e2cd6ebe38ea0d3b5d2ad"
     },
     "frontend/src/components/Glyph.tsx": {
       "sha256": "fa9bf9747d949968678fc7415d9b1f1ab7b6f8469cf44418e041152063402ee4"
     },
     "frontend/src/components/HyperliquidChart.tsx": {
-      "sha256": "04f7ddeba9a540193ef2e8e1a4d70810aa56edea8df068d4a554d5067385bfb3"
+      "sha256": "300faa3dbc06379baffa2a1eb7fe22d133f5410c9f11352ebe6ffbcedbc6433d"
     },
     "frontend/src/contracts.ts": {
       "sha256": "42cdd8d7cbbc8f0c627e94b18ff33463a29dcd137c316d395e56679c98532e41"
@@ -105,7 +105,7 @@
       "sha256": "d047aef97d7154bba264f0510c003a30a6cf2eeef6c841de97497e43dd9ca673"
     },
     "frontend/src/styles/audio-briefing.css": {
-      "sha256": "aed6949c2a42016b09fdad7ab793f527527e54474df4ab044cc26eef985c025a"
+      "sha256": "c317f695db172c459a4af35392d6b74e38e1aafe15733e9c87e38372b5d59d9c"
     },
     "frontend/src/styles/realtime-chart.css": {
       "sha256": "eb7826f079226a01636bd482950de2be686655e57cfbfbe5e0599d7cae91290d"
@@ -117,7 +117,7 @@
       "sha256": "a62814da67ba610413a375186b873861bbb94abac11e8000bd74a8ced5de4715"
     },
     "frontend/src/utils/birthData.ts": {
-      "sha256": "4b2f5ddcddcd451701265d0ebf41899a5ba1bb78d83a25f8f8d0b941f2c31d40"
+      "sha256": "f033617311bbf69f85356cc2e1c89f6762f9ab434c2cd569f14b04000ada047e"
     },
     "frontend/src/utils/briefing-response.ts": {
       "sha256": "ccb5477c6d0857c26b77858d8175b34dc629ac1443e56ab62d83d1b15759adb7"
@@ -145,6 +145,9 @@
     },
     "frontend/tests/astrocartography.test.ts": {
       "sha256": "1a591bfe732a8e93375ca07a77b62fc15b790eeba2634530494ac05111903cd5"
+    },
+    "frontend/tests/birth-instant.test.ts": {
+      "sha256": "6dac95dcb2e23a71276ffa875e3fa7ba88c28942aa1af26d94c0d26aa70a28e7"
     },
     "frontend/tests/briefing-response.test.ts": {
       "sha256": "6ba08641e6ec91b52cdbb7a78afd24f436a2188413bfb96943a0a243b8d1eba5"
@@ -177,7 +180,7 @@
       "sha256": "b6bb1982eb8fb8523271a5bd197b7f7e068a44cb543ccc43a361868d484b0553"
     },
     "packages/go-primitives/README.md": {
-      "sha256": "b301efd3bea903bbef704fa4f50a76b75e12059be102a5bedde214d8f64a73e4"
+      "sha256": "2a45b74c15261b3422b761f659137da203e85c4a534afd7dfbc286434d2e5237"
     },
     "packages/go-primitives/ephem/ephem.go": {
       "sha256": "0481597b07675e8e28b7a356f2da5bd47ae47e15abc1df44fd4eccbf6523facf"

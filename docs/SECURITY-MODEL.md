@@ -139,7 +139,8 @@ flowchart TB
 ```
 
 The envelope exists in two languages (`platform-core/src/vault.rs`,
-`go-primitives/vault`) tested with the same synthetic key and plaintext. The
+`go-primitives/vault`) tested with the same synthetic key and plaintext.
+Production runs the Rust one; the Go one is the format's second implementation. The
 Go package also opens the older text layout, with either IV length the layout
 was written with; the Rust envelope reads the binary layout only. In Go the decrypted value is a type whose `String`, `GoString`
 and `MarshalJSON` all return a redaction marker, so it cannot reach a log line

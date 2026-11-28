@@ -17,7 +17,7 @@ interface HyperliquidChartProps {
   label?: string;
   /** 'area' = indigo line + gradient fill (astradia price card); 'candles' = OHLC candlesticks (trading screens). */
   variant?: PriceChartVariant;
-  /** Render without the surrounding .ad-card chrome (the parent supplies the card). */
+  /** Render without the surrounding .astr-card chrome (the parent supplies the card). */
   bare?: boolean;
   /** Decimals of the head price. Left out, the precision follows the size of the price. */
   decimals?: number;
@@ -375,7 +375,7 @@ function HyperliquidChartComponent({ symbol, height = 620, interval = '15m', lab
   const status = isLoading ? 'loading' : isConnected ? 'live' : 'connecting';
 
   return (
-    <div className={`${bare ? '' : 'ad-card '}rtc-card`}>
+    <div className={`${bare ? '' : 'astr-card '}rtc-card`}>
       {/* Head: label + live price */}
       <div className="rtc-head">
         <div className="rtc-head-label">

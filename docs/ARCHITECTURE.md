@@ -91,7 +91,7 @@ account at once.
 | Shared native engine | Proprietary feature evaluation, calibrated aggregation, and final signal decisions | No implementation, parameters, reference outputs, or binaries |
 | Rust worker | Account coordination, private risk policy, order lifecycle and reconciliation | Coordination and signing primitives in `packages/platform-core`: leases, nonces, protocol hashing and signing. The worker loop, risk policy and exchange adapter are described only |
 | Astronomy service | Generic planetary positions and house geometry | Independent service source and existing license/data notices in `services/ephemeris` |
-| Go social service | Profiles, friendships, consent-aware comparisons, track record, and related product features | Social database package and schema (`packages/social-store`), credential envelope and a pure-Go position calculator (`packages/go-primitives`); comparison scoring, track-record accounting and HTTP layers excluded |
+| Go social service | Profiles, friendships, consent-aware comparisons, track record, and related product features | Social database package and schema (`packages/social-store`) and a pure-Go position calculator (`packages/go-primitives`, which also holds the Go implementation of the credential envelope, no longer part of this service); comparison scoring, track-record accounting and HTTP layers excluded |
 | PostgreSQL | Durable accounts, memberships, payments, preferences, and relationships | Social and audio-cache table definitions only; no database dump |
 | Redis | Shared state, coordination, leases and caches | The lease, nonce, key/value, counter and queue operations in `packages/platform-core`, with bounded waits; no snapshot or deployment configuration |
 
